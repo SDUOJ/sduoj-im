@@ -7,13 +7,13 @@ from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
-from controller import message, notice
+from controller import notice, websocket
 from utils.response import standard_response
 from utils.times import getMsTime
 
 app = FastAPI()
-app.include_router(message.message_router, prefix="/message")
-app.include_router(notice.notice_router, prefix="/new_notice")
+app.include_router(websocket.ws_router, prefix="/ws")
+app.include_router(notice.notice_router, prefix="/notice")
 origins = [
     "*"
 ]

@@ -1,5 +1,5 @@
 from typing import List
-
+from type.notice import notice_information_interface
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import Dict
 
@@ -20,14 +20,21 @@ class WSConnectionManager:
         self.active_connections.pop(u_id)
 
     @staticmethod
-    async def send_personal_message(message: str, ws: WebSocket):
+    async def send_personal_message(message, ws: WebSocket):
         # 发送个人消息
-        await ws.send_text(message)
-
-    async def broadcast(self, message: str):
-        # 广播消息
-        for id, ws in self.active_connections.items():
+        if type(message) != str:
+            await ws.send_json(message)
+        else:
             await ws.send_text(message)
+
+    async def broadcast(self, message, u_list: list):
+        # 广播通知
+        for u_id in u_list:
+            if u_id in ws_manager.active_connections:
+                if type(message) == str:
+                    await self.active_connections[u_id].send_text(message)
+                else:
+                    await self.active_connections[u_id].send_json(message)
 
 
 ws_manager = WSConnectionManager()
