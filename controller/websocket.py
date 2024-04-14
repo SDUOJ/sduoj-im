@@ -20,8 +20,9 @@ notice_model = NoticeModel()
 num = 1
 
 
-@ws_router.websocket("/buildConnect/{m_from}")  # 建立websocket连接
-async def connect_build(websocket: WebSocket, m_from: int):
+@ws_router.websocket("/buildConnect")  # 建立websocket连接
+async def connect_build(websocket: WebSocket):
+    m_from= 1
     if m_from not in ws_manager.active_connections:
         await ws_manager.connect(websocket, m_from)
     try:
