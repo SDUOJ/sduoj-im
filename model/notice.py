@@ -1,11 +1,5 @@
-from sqlalchemy import (
-    Column,
-    Integer,
-    DateTime,
-    VARCHAR,
-    ForeignKey, Date, Index, Float, event, func, BigInteger, SmallInteger,
-)
-from sqlalchemy.orm import relationship
+from apscheduler.schedulers.blocking import BlockingScheduler
+from sqlalchemy import Column, BigInteger, DateTime, func, VARCHAR, SmallInteger, JSON, String
 
 from model.db import Base
 
@@ -20,8 +14,21 @@ class Notice(Base):  # 通知表
     u_id = Column(BigInteger, nullable=False, unique=False, index=False)
     p_id = Column(BigInteger, nullable=True, unique=False, index=True)
     ct_id = Column(BigInteger, nullable=True, unique=False, index=True)
-    # u_id = Column(Integer, ForeignKey('oj_user.u_id'), nullable=False, unique=False, index=False)
-    # p_id = Column(Integer, ForeignKey('oj_problem.p_id'), nullable=True, unique=False, index=True)
-    # ct_id = Column(Integer, ForeignKey('oj_contest.ct_id'), nullable=True, unique=False, index=True)
+    # u_id = Column(BigInteger, ForeignKey('oj_user.u_id'), nullable=False, unique=False, index=False)
+    # p_id = Column(BigInteger, ForeignKey('oj_problem.p_id'), nullable=True, unique=False, index=True)
+    # ct_id = Column(BigInteger, ForeignKey('oj_contest.ct_id'), nullable=True, unique=False, index=True)
     n_title = Column(VARCHAR(100), nullable=False, unique=False, index=False)
     n_content = Column(VARCHAR(200), nullable=False, unique=False, index=False)
+    n_read_user = Column(VARCHAR(1024), nullable=True, unique=False, index=False)
+
+def insert_data():
+    pass
+
+# 创建定时任务
+# scheduler = BlockingScheduler()
+#
+# # 添加定时任务，每晚1点运行插入数据函数
+# scheduler.add_job(insert_data, 'cron', hour=1)
+#
+# # 运行定时任务
+# scheduler.start()

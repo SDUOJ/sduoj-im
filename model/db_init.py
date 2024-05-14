@@ -3,9 +3,7 @@ from message import Message
 from notice import Notice
 from const import SQLALCHEMY_DATABASE_URL
 
-
-
-create_table_list = [Notice,Message
+create_table_list = [Notice, Message
                      ]
 
 if __name__ == "__main__":

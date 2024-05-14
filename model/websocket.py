@@ -15,9 +15,10 @@ class WSConnectionManager:
         # 存储ws连接对象
         self.active_connections[u_id] = ws
 
-    def disconnect(self, ws: WebSocket, u_id: int):
+    def disconnect(self, u_id: int):
         # 关闭时 移除ws对象
-        self.active_connections.pop(u_id)
+        if u_id in self.active_connections:
+            del self.active_connections[u_id]
 
     @staticmethod
     async def send_personal_message(message, ws: WebSocket):

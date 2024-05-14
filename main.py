@@ -73,17 +73,6 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-@standard_response
-async def root():
-    return {"message": "Hello World"}
-
-
-@app.get("/hello/{name}")
-@standard_response
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
-
 
 def main():
     uvicorn.run(app, host="127.0.0.1", port=8000)
