@@ -7,11 +7,6 @@ from model.message import Message
 
 
 class MessageModel(dbSession):
-    def __init__(self, m_from=None, m_content=None, m_gmt_create=None):
-        super().__init__()
-        self.m_from = m_from
-        self.m_content = m_content
-        self.m_gmt_create = m_gmt_create
 
     def add_message(self, obj: message_add_interface):  # 添加一条消息
         obj_dict = jsonable_encoder(obj)
@@ -19,7 +14,7 @@ class MessageModel(dbSession):
         with self.get_db() as session:
             session.add(obj_add)
             session.commit()
-            return obj_add.m_gmt_create
+            return obj_add.m_gmt_create, obj_add.m_id
 
     def get_message(self, m_from: int, message_get: message_get_interface):
         with self.get_db() as session:

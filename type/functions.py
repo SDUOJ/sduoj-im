@@ -13,7 +13,7 @@ def num_in_nums(num, nums):
 
 
 async def send_heartbeat(websocket: WebSocket):
-    heartbeat_interval = 1000
+    heartbeat_interval = 100000
     try:
         while True:
             await asyncio.sleep(heartbeat_interval)  # 发送一次心跳时间
@@ -23,6 +23,16 @@ async def send_heartbeat(websocket: WebSocket):
         pass
 
 
+def get_redis_message_key(m_from, data):
+    if m_from > data['m_to']:  # 固定格式为:p/ct_id - 小id - 大id
+        m_small = data['m_to']
+        m_big = m_from
+    else:
+        m_small = m_from
+        m_big = data['m_to']
+    return f"p-{data['p_id']}-{m_small}-{m_big}" if 'p_id' in data else f"ct-{data['ct_id']}-{m_small}-{m_big}"
+
+
 def check_keys_absent_in_redis(keys_list):
     # 检查每个键是否存在于 Redis 中
     for key_suffix in keys_list:
@@ -30,17 +40,6 @@ def check_keys_absent_in_redis(keys_list):
         if redis_client.key_exists(redis_key):
             return True  # 如果任何一个键存在，则返回True
     return False  # 如果所有键都不存在，则返回 False
-
-
-
-
-
-
-
-
-
-
-
 
 
 # def send_read_receipt(sender_id, receiver_id):

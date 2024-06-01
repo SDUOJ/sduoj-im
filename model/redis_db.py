@@ -1,16 +1,19 @@
 import redis
 from contextlib import contextmanager
 import logging
+from urllib.parse import urlparse
+from const import REDIS_URL
 
 
 class RedisClient:
-    def __init__(self, host, port, password, db, max_connections=50, timeout=10):
+    def __init__(self, url, max_connections=50, timeout=10):
+        result = urlparse(url)
         self.connection_pool = redis.ConnectionPool(
-            host=host,
-            port=port,
-            password=password,
+            host=result.hostname,
+            port=result.port,
+            password=result.password,
             max_connections=max_connections,
-            db=db,
+            db=int(result.path[1:]),
             decode_responses=True
         )
         self.timeout = timeout
@@ -71,6 +74,20 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return False
 
+    def lrem(self, key, target_value):
+        with self.get_connection() as conn:
+            try:
+                return conn.lerm(key, 0, target_value)
+            except redis.exceptions.RedisError as e:
+                return None
+
+    def lpop(self, key):
+        with self.get_connection() as conn:
+            try:
+                return conn.lpop(key)
+            except redis.exceptions.RedisError as e:
+                return None
+
     def zadd(self, key, *args, **kwargs):
         with self.get_connection() as conn:
             try:
@@ -110,4 +127,4 @@ class RedisClient:
                 return None
 
 
-redis_client = RedisClient(host='192.168.17.129', port=6379, password='', db=1)
+redis_client = RedisClient(url=REDIS_URL)

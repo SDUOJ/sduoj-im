@@ -1,4 +1,6 @@
 from typing import List
+
+from model.redis_db import redis_client
 from type.notice import notice_information_interface
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import Dict
@@ -28,7 +30,7 @@ class WSConnectionManager:
         else:
             await ws.send_text(message)
 
-    async def broadcast(self, message, u_list: list):
+    async def broadcast(self, message, u_list: list, notice_id: int):
         # 广播通知
         for u_id in u_list:
             if u_id in ws_manager.active_connections:
@@ -36,6 +38,9 @@ class WSConnectionManager:
                     await self.active_connections[u_id].send_text(message)
                 else:
                     await self.active_connections[u_id].send_json(message)
+            else:
+                redis_client.rpush(f'u-{u_id}', f'notice-{notice_id}')
+                redis_client.ltimeset(f'u-{u_id}', 1 * 24 * 3600)
 
 
 ws_manager = WSConnectionManager()

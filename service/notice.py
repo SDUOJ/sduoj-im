@@ -27,12 +27,13 @@ class NoticeModel(dbSession):
 
     def update_notice(self, notice_update: notice_update_interface):
         with self.get_db() as session:
+            timenow = datetime.datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S")
             session.query(Notice).filter(Notice.n_id == notice_update.n_id, Notice.n_is_deleted == 0).update(
                 {"n_title": notice_update.n_title, "n_content": notice_update.n_content,
-                 "n_gmt_modified": datetime.datetime.now().strftime(
-                     "%Y-%m-%d %H:%M:%S")})
+                 "n_gmt_modified": timenow})
             session.commit()
-            return notice_update.n_id
+            return timenow
 
     def get_notice_list_id_by_p_ct(self, page, noticelist_get: base_interface):  # 根据p_id,ct_id查询notice的列表
         with self.get_db() as session:
@@ -54,7 +55,7 @@ class NoticeModel(dbSession):
         with self.get_db() as session:
             # 查询指定 id 的记录
             ses = session.query(Notice.n_id, Notice.n_gmt_create, Notice.n_gmt_modified, Notice.u_id,
-                                Notice.n_title, Notice.n_read_user).filter(
+                                Notice.n_title, Notice.n_read_user, Notice.p_id, Notice.ct_id).filter(
                 Notice.n_is_deleted == 0,
                 Notice.n_id.in_(ids)  # 过滤条件：n_id 在给定的 ids 列表中
             ).all()
@@ -62,14 +63,20 @@ class NoticeModel(dbSession):
             # 将查询结果转换为字典列表
             notice_json = []
             for record in ses:
-                notice_json.append({
+                temp_dict = {
                     'n_id': record.n_id,
                     'n_gmt_create': record.n_gmt_create.strftime('%Y-%m-%d %H:%M:%S'),
                     'n_gmt_modified': record.n_gmt_modified.strftime('%Y-%m-%d %H:%M:%S'),
                     'u_id': record.u_id,
                     'n_title': record.n_title,
                     'n_read_user': record.n_read_user,
-                })
+                }
+                if record.p_id is not None:  # 如果 p_id 不为空，则添加到结果字典
+                    temp_dict['p_id'] = ses.p_id
+
+                if record.ctp_id is not None:  # 如果 ctp_id 不为空，则添加到结果字典
+                    temp_dict['ct_id'] = ses.ct_id
+                notice_json.append(temp_dict)
 
             session.commit()
             return notice_json
@@ -106,8 +113,9 @@ class NoticeModel(dbSession):
 
     def get_notice_by_n_id(self, n_id):  # 根据n_id查询notice的基本信息
         with self.get_db() as session:
+
             ses = session.query(Notice.n_gmt_create, Notice.n_gmt_modified, Notice.u_id, Notice.n_title,
-                                Notice.n_content, Notice.n_read_user).filter(
+                                Notice.n_content, Notice.n_read_user, Notice.p_id, Notice.ct_id).filter(
                 Notice.n_id == n_id, Notice.n_is_deleted == 0).first()
             res = {
                 'n_gmt_create': ses.n_gmt_create.strftime('%Y-%m-%d %H:%M:%S'),
@@ -117,6 +125,11 @@ class NoticeModel(dbSession):
                 'n_content': ses.n_content,
                 'n_read_user': ses.n_read_user
             }
+            if ses.p_id is not None:  # 如果 p_id 不为空，则添加到结果字典
+                res['p_id'] = ses.p_id
+
+            if ses.ct_id is not None:  # 如果 ctp_id 不为空，则添加到结果字典
+                res['ct_id'] = ses.ct_id
             session.commit()
             return res
 

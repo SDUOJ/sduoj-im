@@ -7,17 +7,20 @@ from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
-from controller import notice, websocket
+from controller import notice, websocket, message
 from utils.response import standard_response
 from utils.times import getMsTime
 
 app = FastAPI()
 app.include_router(websocket.ws_router, prefix="/ws")
 app.include_router(notice.notice_router, prefix="/notice")
+app.include_router(message.message_router, prefix="/message")
 origins = [
     "*"
 ]
-headers = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Credentials":"true", "Access-Control-Allow-Methods": "POST,OPTIONS,GET,UPDATE,DELETE"}
+headers = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Credentials": "true",
+           "Access-Control-Allow-Methods": "POST,OPTIONS,GET,UPDATE,DELETE"}
+
 
 @app.exception_handler(HTTPException)  # 自定义HttpRequest 请求异常
 async def http_exception_handle(request, exc):
@@ -26,7 +29,7 @@ async def http_exception_handle(request, exc):
         "message": str(exc.detail),
         "data": None,
         "timestamp": getMsTime(datetime.now())
-    }, status_code=exc.status_code,headers = headers)
+    }, status_code=exc.status_code, headers=headers)
     return response
 
 
@@ -44,7 +47,7 @@ async def request_validatoion_error(request, exc):
         "message": message,
         "data": None,
         "timestamp": getMsTime(datetime.now())
-    }, status_code=400,headers = headers)
+    }, status_code=400, headers=headers)
     return response
 
 
@@ -59,7 +62,7 @@ async def request_validatoion_error(request, exc):
         "message": "内部错误",
         "data": message,
         "timestamp": getMsTime(datetime.now())
-    }, status_code=500,headers = headers)
+    }, status_code=500, headers=headers)
     return response
 
 
@@ -73,10 +76,8 @@ app.add_middleware(
 )
 
 
-
 def main():
     uvicorn.run(app, host="127.0.0.1", port=8000)
-
 
 
 if __name__ == "__main__":
