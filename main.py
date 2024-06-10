@@ -8,7 +8,6 @@ from fastapi.exceptions import RequestValidationError
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from controller import notice, websocket, message
-from utils.response import standard_response
 from utils.times import getMsTime
 
 app = FastAPI()

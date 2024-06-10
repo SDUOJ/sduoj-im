@@ -5,7 +5,7 @@ from model.db import Base
 
 
 class Notice(Base):  # 通知表
-    __tablename__ = 'oj_notice'
+    __tablename__ = 'oj_notification'
     n_id = Column(BigInteger, primary_key=True, nullable=False, unique=True)
     n_gmt_create = Column(DateTime, nullable=False, unique=False, index=False, default=func.now())
     n_gmt_modified = Column(DateTime, nullable=False, unique=False, index=False, default=func.now())

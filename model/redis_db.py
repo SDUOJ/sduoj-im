@@ -65,6 +65,7 @@ class RedisClient:
             try:
                 return conn.lrange(key, start, end)
             except redis.exceptions.RedisError as e:
+                print(e)
                 return False
 
     def ltimeset(self, key, time):
@@ -78,6 +79,34 @@ class RedisClient:
         with self.get_connection() as conn:
             try:
                 return conn.lerm(key, 0, target_value)
+            except redis.exceptions.RedisError as e:
+                return None
+
+    def hget(self, key, target_key):
+        with self.get_connection() as conn:
+            try:
+                return conn.hget(key, target_key)
+            except redis.exceptions.RedisError as e:
+                return None
+
+    def hset(self, key, target_key, target_value):
+        with self.get_connection() as conn:
+            try:
+                return conn.hset(key, target_key, target_value)
+            except redis.exceptions.RedisError as e:
+                return None
+
+    def hexists(self, key, target_key):
+        with self.get_connection() as conn:
+            try:
+                return conn.hexists(key, target_key)
+            except redis.exceptions.RedisError as e:
+                return None
+
+    def hgetall(self, key):
+        with self.get_connection() as conn:
+            try:
+                return conn.hgetall(key)
             except redis.exceptions.RedisError as e:
                 return None
 
@@ -109,7 +138,7 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return False
 
-    def key_exists(self, key):
+    def exists(self, key):
         with self.get_connection() as conn:
             try:
                 return conn.exists(key)

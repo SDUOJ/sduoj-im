@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 from fastapi import Request
 from fastapi import WebSocket
 from starlette.websockets import WebSocketDisconnect
-from type.functions import num_in_nums, check_keys_absent_in_redis
+from type.functions import num_in_nums
 from model.redis_db import redis_client
 from model.websocket import ws_manager
 from service.notice import NoticeModel
@@ -26,7 +26,7 @@ message_model = MessageModel()
 @user_standard_response
 async def notice_delete(n_id: notice_delete_interface):
     notice_model.delete_notice(n_id.n_id)
-    redis_client.delete(f"notice-{n_id.n_id}")
+    redis_client.delete(f'cache:notices:{n_id.n_id}')
     return {'message': '删除成功', 'data': True, 'code': 0}
 
 
@@ -42,7 +42,7 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
     notices = []
     none_notice_ids = []
     for notice_id in notices_ids:  # 遍历所有要返回的Notice_id
-        current_notice_information = redis_client.get(f'notice-{notice_id}')
+        current_notice_information = redis_client.get(f'cache:notices:{notice_id}')
         if current_notice_information is not None:  # redis里有
             current_notice_information_json = json.loads(current_notice_information)
             current_notice_information_json['n_id'] = notice_id
@@ -63,7 +63,7 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
                                                                                    new_notice["n_read_user"]) else 0
             n_id = new_notice['n_id']
             new_notice.pop('n_id')
-            redis_client.set(f'notice-{n_id}', json.dumps(new_notice), 1 * 24 * 3600)
+            redis_client.set(f'cache:notices:{n_id}', json.dumps(new_notice), 1 * 24 * 3600)
             new_notice.pop('n_read_user')
             new_notice['n_is_read'] = n_is_read
             new_notice['n_id'] = n_id
@@ -87,7 +87,7 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
 async def notice_get(n_id: int):
     # 鉴权(有权限的用户才可查看)
     u_id = 1
-    notice_read_key = f"notice-{n_id}"
+    notice_read_key = f'cache:notices:{n_id}'
     redis_value = redis_client.get(notice_read_key)
     if redis_value is None:
         # 如果Redis中没有该公告的已读用户ID数据，则从数据库中获取数据

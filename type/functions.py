@@ -6,14 +6,13 @@ from model.redis_db import redis_client
 
 import time
 
-
 def num_in_nums(num, nums):
     nums_list = nums.split(",")
     return True if num in nums_list else False
 
 
 async def send_heartbeat(websocket: WebSocket):
-    heartbeat_interval = 100000
+    heartbeat_interval = 10000
     try:
         while True:
             await asyncio.sleep(heartbeat_interval)  # 发送一次心跳时间
@@ -30,16 +29,15 @@ def get_redis_message_key(m_from, data):
     else:
         m_small = m_from
         m_big = data['m_to']
-    return f"p-{data['p_id']}-{m_small}-{m_big}" if 'p_id' in data else f"ct-{data['ct_id']}-{m_small}-{m_big}"
+    return f"cache:messages:p:{data['p_id']}-{m_small}-{m_big}" if 'p_id' in data else f"cache:messages:ct-{data['ct_id']}-{m_small}-{m_big}"
 
-
-def check_keys_absent_in_redis(keys_list):
-    # 检查每个键是否存在于 Redis 中
-    for key_suffix in keys_list:
-        redis_key = f'notice-{key_suffix[0]}'
-        if redis_client.key_exists(redis_key):
-            return True  # 如果任何一个键存在，则返回True
-    return False  # 如果所有键都不存在，则返回 False
+# def check_keys_absent_in_redis(keys_list):
+#     # 检查每个键是否存在于 Redis 中
+#     for key_suffix in keys_list:
+#         redis_key = f'notice-{key_suffix[0]}'
+#         if redis_client.key_exists(redis_key):
+#             return True  # 如果任何一个键存在，则返回True
+#     return False  # 如果所有键都不存在，则返回 False
 
 
 # def send_read_receipt(sender_id, receiver_id):

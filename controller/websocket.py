@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 from model.redis_db import redis_client
 import websockets
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi import Request
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -17,18 +17,19 @@ from type.message import message_add_interface, message_receive_interface, messa
 from type.notice import base_interface, notice_information_interface, notice_add_interface, notice_interface, \
     notice_update_interface
 from utils.response import user_standard_response
-
+from utils.oj_information import oj_information
 ws_router = APIRouter()
 message_model = MessageModel()
 notice_model = NoticeModel()
 
 
-@ws_router.websocket("/buildConnect/{m_from}")  # 建立websocket连接(注释掉的部分为判断已读未读)
-async def connect_build(websocket: WebSocket, m_from: int):
+@ws_router.websocket("/buildConnect")  # 建立websocket连接(注释掉的部分为判断已读未读)
+async def connect_build(websocket: WebSocket, oj_information = Depends(oj_information)):
     try:
+        m_from = oj_information['userId']
         if m_from not in ws_manager.active_connections:  # 发送者刚上线
             await ws_manager.connect(websocket, m_from)
-            redis_user_key = f'u-{m_from}'
+            redis_user_key = f'cache:unreadUsers:{m_from}'
             missed_msg_notice = redis_client.lrange(redis_user_key, 0, -1)
             redis_set = set()  # 用来去重
             if missed_msg_notice:  # 是否有错过的消息
@@ -39,7 +40,8 @@ async def connect_build(websocket: WebSocket, m_from: int):
                     else:
                         redis_set.add(missed)
                     if missed.startswith('n'):
-                        notice_information = json.loads(redis_client.get(missed))
+                        missed_notice_id = missed.split('-')[1]
+                        notice_information = json.loads(redis_client.get(f'cache:notices:{missed_notice_id}'))
                         send_thing = {'u_id': notice_information['u_id'], 'n_title': notice_information['n_title'],
                                       'n_gmt_create': notice_information['n_gmt_create']}
                         key_value = {'p_id': notice_information['p_id']} if 'p_id' in notice_information else {
@@ -90,17 +92,18 @@ async def connect_build(websocket: WebSocket, m_from: int):
                     #             websocket)
                     #     redis_client.set(unread_key, 1, 1 * 24 * 3600)
                 else:  # 接收者不在线
-                    redis_client.rpush(f'u-{m_to}', json.dumps(data))
-                    redis_client.ltimeset(f'u-{m_to}', 1 * 24 * 3600)
+                    redis_client.rpush(f'cache:unreadUsers:{m_to}', json.dumps(data))
+                    redis_client.ltimeset(f'cache:unreadUsers:{m_to}', 1 * 24 * 3600)
                     # unread_key = f"p-{data['p_id']}-{m_from}-{data['m_to']}-{current_timestamp}" if 'p_id' in data else f"ct-{data['ct_id']}-{m_from}-{data['m_to']}-{current_timestamp}"
                     # unread_count = redis_client.get(unread_key)  # 查找未读消息数量
                     # if unread_count is None:
                     #     redis_client.set(unread_key, 1, 7 * 24 * 3600)
                     # else:
                     #     redis_client.set(unread_key, int(unread_count) + 1, 7 * 24 * 3600)
-                # redis_client.rpush(redis_message_key, json.dumps(data))
-                # redis_client.ltimeset(redis_message_key, 1 * 24 * 3600)
-
+                redis_client.rpush(redis_message_key, json.dumps(data))
+                redis_client.ltimeset(redis_message_key, 1 * 24 * 3600)
+                redis_message_list_key = f"cache:messageLists:p:{data['p_id']}-{m_from}" if 'p_id' in data else f"cache:messageLists:ct-{data['ct_id']}-{m_from}"
+                redis_client.hset(redis_message_list_key, m_to, json.dumps({"m_gmt_create": current_time}))
             elif mode == 2:
                 # 处理发布公告逻辑
                 student_list = [2]
@@ -113,7 +116,7 @@ async def connect_build(websocket: WebSocket, m_from: int):
                 data['n_gmt_create'] = n_gmt_create
                 data.pop('n_content')
                 await ws_manager.broadcast(data, student_list, n_id)
-                notice_read_key = f"notice-{n_id}"
+                notice_read_key = f'cache:notices:{n_id}'
                 key_value = {'p_id': data['p_id']} if 'p_id' in data else {
                     'ct_id': data['ct_id']}
                 notice_information = {'n_gmt_create': n_gmt_create,
@@ -138,7 +141,7 @@ async def connect_build(websocket: WebSocket, m_from: int):
                 if notice_information.ct_id is None:
                     del notice_information.ct_id
                 await ws_manager.broadcast(notice_information.model_dump_json(), student_list, n_id)
-                notice_read_key = f"notice-{n_id}"
+                notice_read_key = f'cache:notices:{n_id}'
                 redis_value = redis_client.get(notice_read_key)
                 key_value = {'p_id': data['p_id']} if 'p_id' in data else {
                     'ct_id': data['ct_id']}

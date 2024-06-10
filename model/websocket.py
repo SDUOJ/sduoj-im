@@ -39,8 +39,8 @@ class WSConnectionManager:
                 else:
                     await self.active_connections[u_id].send_json(message)
             else:
-                redis_client.rpush(f'u-{u_id}', f'notice-{notice_id}')
-                redis_client.ltimeset(f'u-{u_id}', 1 * 24 * 3600)
+                redis_client.rpush(f'cache:unreadUsers:{u_id}', f'notice-{notice_id}')
+                redis_client.ltimeset(f'cache:unreadUsers:{u_id}', 1 * 24 * 3600)
 
 
 ws_manager = WSConnectionManager()

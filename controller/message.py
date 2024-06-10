@@ -58,12 +58,15 @@ async def message_view(p_id: Optional[int] = None, ct_id: Optional[int] = None):
     # 处理查看提问列表逻辑
     m_from = 1
     data = {'p_id': p_id} if p_id is not None else {'ct_id': ct_id}
-    redis_message_list_key = f"list-p-{data['p_id']}-{m_from}" if 'p_id' in data else f"list-ct-{data['ct_id']}-{m_from}"
-    redis_message_list_value = redis_client.lrange(redis_message_list_key, 0, -1)
-    if not redis_message_list_value:
+    redis_message_list_value = []
+    redis_message_list_key = f"cache:messageLists:p:{data['p_id']}-{m_from}" if 'p_id' in data else f"cache:messageLists:ct-{data['ct_id']}-{m_from}"
+    all_data = redis_client.hgetall(redis_message_list_key)
+    if all_data:
+        for key, value in all_data.items():
+            redis_message_list_value.append({'m_to': key, 'm_gmt_create': value})
+    else:
         base = base_interface.model_validate(data)
         redis_message_list_value = message_model.get_message_list(m_from, base)
         for mes in redis_message_list_value:
-            redis_client.lpush(redis_message_list_key, json.dumps(
-                {"m_gmt_create": mes['m_gmt_create'], "m_to": mes['m_to']}))
+            redis_client.hset(redis_message_list_key, mes['m_to'], json.dumps({"m_gmt_create": mes['m_gmt_create']}))
     return {'message': '查看信息成功', 'data': redis_message_list_value, 'code': 0}

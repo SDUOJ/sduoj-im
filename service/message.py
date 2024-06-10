@@ -41,21 +41,21 @@ class MessageModel(dbSession):
             session.commit()
             return messages_json
 
-    def get_message_list(self, m_to: int, base: base_interface):
+    def get_message_list(self, m_from: int, base: base_interface):
         with self.get_db() as session:
             messages = session.query(
-                Message.m_from,
+                Message.m_to,
                 func.max(Message.m_gmt_create).label("latest_time")
             ).filter(
                 or_(
                     and_(Message.p_id == base.p_id, base.p_id is not None),
                     and_(Message.ct_id == base.ct_id, base.ct_id is not None)
                 ),
-                Message.m_to == m_to
-            ).group_by(Message.m_from).all()
+                Message.m_from == m_from
+            ).group_by(Message.m_to).all()
             messages_json = []
             for msg in messages:
-                messages_json.append({'m_to': msg.m_from,
+                messages_json.append({'m_to': msg.m_to,
                                       'm_gmt_create': msg[1].strftime('%Y-%m-%d %H:%M:%S')})
 
                 session.commit()
