@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine
 from message import Message
-from notice import Notice
+from notice import Notice, UserNotice
 from const import SQLALCHEMY_DATABASE_URL
 
-create_table_list = [Notice, Message
+create_table_list = [Notice, Message, UserNotice
                      ]
 
 if __name__ == "__main__":

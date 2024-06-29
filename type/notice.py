@@ -25,5 +25,9 @@ class notice_add_interface(notice_interface):
     u_id: int
 
 
+class notice_user_add_interface(notice_delete_interface):
+    u_id: int
+
+
 class notice_update_interface(notice_interface, notice_delete_interface):
     pass

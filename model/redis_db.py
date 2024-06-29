@@ -46,10 +46,24 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return False
 
+    def expire(self, key, time):
+        with self.get_connection() as conn:
+            try:
+                return conn.expire(key, time)
+            except redis.exceptions.RedisError as e:
+                return False
+
     def lpush(self, key, *values):
         with self.get_connection() as conn:
             try:
                 return conn.lpush(key, *values)
+            except redis.exceptions.RedisError as e:
+                return False
+
+    def llen(self, key):
+        with self.get_connection() as conn:
+            try:
+                return conn.llen(key)
             except redis.exceptions.RedisError as e:
                 return False
 
@@ -103,6 +117,13 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return None
 
+    def hlen(self, key):
+        with self.get_connection() as conn:
+            try:
+                return conn.hlen(key)
+            except redis.exceptions.RedisError as e:
+                return None
+
     def hgetall(self, key):
         with self.get_connection() as conn:
             try:
@@ -124,6 +145,13 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return False
 
+    def zcard(self, key):
+        with self.get_connection() as conn:
+            try:
+                return conn.zcard(key)
+            except redis.exceptions.RedisError as e:
+                return False
+
     def zrange(self, key, start, end, desc=False, withscores=False, score_cast_func=float):
         with self.get_connection() as conn:
             try:
@@ -131,10 +159,52 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return False
 
+    def zrangebyscore(self, key, minscore, maxscore, start, num):
+        with self.get_connection() as conn:
+            try:
+                return conn.zrangebyscore(key, minscore, maxscore, start, num)
+            except redis.exceptions.RedisError as e:
+                return False
+
+    def zrevrangebyscore(self, key, minscore, maxscore, start, num):
+        with self.get_connection() as conn:
+            try:
+                return conn.zrevrangebyscore(key, minscore, maxscore, start, num)
+            except redis.exceptions.RedisError as e:
+                return False
+
+    def zremrangebyscore(self, key, deletescore):
+        with self.get_connection() as conn:
+            try:
+                return conn.zremrangebyscore(key, deletescore, deletescore)
+            except redis.exceptions.RedisError as e:
+                return False
+
     def delete(self, *keys):
         with self.get_connection() as conn:
             try:
                 return conn.delete(*keys)
+            except redis.exceptions.RedisError as e:
+                return False
+
+    def sadd(self, key, *keys):
+        with self.get_connection() as conn:
+            try:
+                return conn.sadd(key, *keys)
+            except redis.exceptions.RedisError as e:
+                return False
+
+    def sismember(self, key, value):
+        with self.get_connection() as conn:
+            try:
+                return conn.sismember(key, value)
+            except redis.exceptions.RedisError as e:
+                return False
+
+    def srem(self, key, value):
+        with self.get_connection() as conn:
+            try:
+                return conn.srem(key, value)
             except redis.exceptions.RedisError as e:
                 return False
 

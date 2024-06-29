@@ -8,11 +8,11 @@ import time
 
 def num_in_nums(num, nums):
     nums_list = nums.split(",")
-    return True if num in nums_list else False
+    return True if str(num) in nums_list else False
 
 
 async def send_heartbeat(websocket: WebSocket):
-    heartbeat_interval = 10000
+    heartbeat_interval = 300
     try:
         while True:
             await asyncio.sleep(heartbeat_interval)  # 发送一次心跳时间

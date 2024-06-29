@@ -4,8 +4,8 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import desc
 from type.functions import num_in_nums
 from model.db import dbSession
-from model.notice import Notice
-from type.notice import notice_add_interface, notice_update_interface, base_interface
+from model.notice import Notice, UserNotice
+from type.notice import notice_add_interface, notice_update_interface, base_interface, notice_user_add_interface
 import datetime
 
 
@@ -54,8 +54,8 @@ class NoticeModel(dbSession):
     def get_notice_list_by_ids(self, ids):  # 根据 id 查询 notice 的列表
         with self.get_db() as session:
             # 查询指定 id 的记录
-            ses = session.query(Notice.n_id, Notice.n_gmt_create, Notice.n_gmt_modified, Notice.u_id,
-                                Notice.n_title, Notice.n_read_user, Notice.p_id, Notice.ct_id).filter(
+            ses = session.query(Notice.n_id, Notice.n_gmt_create, Notice.n_gmt_modified, Notice.u_id, Notice.n_content,
+                                Notice.n_title, Notice.p_id, Notice.ct_id).filter(
                 Notice.n_is_deleted == 0,
                 Notice.n_id.in_(ids)  # 过滤条件：n_id 在给定的 ids 列表中
             ).all()
@@ -68,14 +68,14 @@ class NoticeModel(dbSession):
                     'n_gmt_create': record.n_gmt_create.strftime('%Y-%m-%d %H:%M:%S'),
                     'n_gmt_modified': record.n_gmt_modified.strftime('%Y-%m-%d %H:%M:%S'),
                     'u_id': record.u_id,
-                    'n_title': record.n_title,
-                    'n_read_user': record.n_read_user,
+                    'n_content': record.n_content,
+                    'n_title': record.n_title
                 }
                 if record.p_id is not None:  # 如果 p_id 不为空，则添加到结果字典
-                    temp_dict['p_id'] = ses.p_id
+                    temp_dict['p_id'] = record.p_id
 
-                if record.ctp_id is not None:  # 如果 ctp_id 不为空，则添加到结果字典
-                    temp_dict['ct_id'] = ses.ct_id
+                if record.ct_id is not None:  # 如果 ctp_id 不为空，则添加到结果字典
+                    temp_dict['ct_id'] = record.ct_id
                 notice_json.append(temp_dict)
 
             session.commit()
@@ -115,21 +115,22 @@ class NoticeModel(dbSession):
         with self.get_db() as session:
 
             ses = session.query(Notice.n_gmt_create, Notice.n_gmt_modified, Notice.u_id, Notice.n_title,
-                                Notice.n_content, Notice.n_read_user, Notice.p_id, Notice.ct_id).filter(
+                                Notice.n_content, Notice.p_id, Notice.ct_id).filter(
                 Notice.n_id == n_id, Notice.n_is_deleted == 0).first()
-            res = {
-                'n_gmt_create': ses.n_gmt_create.strftime('%Y-%m-%d %H:%M:%S'),
-                'n_gmt_modified': ses.n_gmt_modified.strftime('%Y-%m-%d %H:%M:%S'),
-                'u_id': ses.u_id,
-                'n_title': ses.n_title,
-                'n_content': ses.n_content,
-                'n_read_user': ses.n_read_user
-            }
-            if ses.p_id is not None:  # 如果 p_id 不为空，则添加到结果字典
-                res['p_id'] = ses.p_id
+            res = None
+            if ses is not None:
+                res = {
+                    'n_gmt_create': ses.n_gmt_create.strftime('%Y-%m-%d %H:%M:%S'),
+                    'n_gmt_modified': ses.n_gmt_modified.strftime('%Y-%m-%d %H:%M:%S'),
+                    'u_id': ses.u_id,
+                    'n_title': ses.n_title,
+                    'n_content': ses.n_content
+                }
+                if ses.p_id is not None:  # 如果 p_id 不为空，则添加到结果字典
+                    res['p_id'] = ses.p_id
 
-            if ses.ct_id is not None:  # 如果 ctp_id 不为空，则添加到结果字典
-                res['ct_id'] = ses.ct_id
+                if ses.ct_id is not None:  # 如果 ctp_id 不为空，则添加到结果字典
+                    res['ct_id'] = ses.ct_id
             session.commit()
             return res
 
@@ -139,3 +140,22 @@ class NoticeModel(dbSession):
                 Notice.n_id == n_id, Notice.n_is_deleted == 0).first()
             session.commit()
             return content
+
+
+class UserNoticeModel(dbSession):
+    def add_user_notice(self, n_id: int, u_id: int):  # 添加已读记录
+        obj = notice_user_add_interface(n_id=n_id, u_id=u_id)
+        obj_dict = jsonable_encoder(obj)
+        obj_add = UserNotice(**obj_dict)
+        with self.get_db() as session:
+            session.add(obj_add)
+            session.flush()
+            session.commit()
+            return obj_add.nu_id
+
+    def judge_exist_by_u_n(self, u_id: int, n_id: int):  # 根据u_id,n_id查是否已读
+        with self.get_db() as session:
+            nu_is_read = session.query(UserNotice.nu_is_read).filter(
+                UserNotice.n_id == n_id, UserNotice.u_id == u_id).first()
+            session.commit()
+            return 1 if nu_is_read is not None else 0

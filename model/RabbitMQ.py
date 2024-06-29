@@ -3,7 +3,7 @@ import logging
 from queue import Queue
 from threading import Lock
 from contextlib import contextmanager
-from const import RABBITMQ_URL
+# from const import RABBITMQ_URL
 from urllib.parse import urlparse
 
 # 配置日志

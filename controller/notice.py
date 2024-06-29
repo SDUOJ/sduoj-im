@@ -9,7 +9,7 @@ from starlette.websockets import WebSocketDisconnect
 from type.functions import num_in_nums
 from model.redis_db import redis_client
 from model.websocket import ws_manager
-from service.notice import NoticeModel
+from service.notice import NoticeModel, UserNoticeModel
 from type.notice import notice_add_interface, notice_update_interface, base_interface, notice_information_interface, \
     notice_delete_interface
 from type.page import page
@@ -19,6 +19,7 @@ from service.message import MessageModel
 notice_router = APIRouter()
 
 notice_model = NoticeModel()
+user_notice_model = UserNoticeModel()
 message_model = MessageModel()
 
 
@@ -41,32 +42,35 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
     notices_ids, counts = notice_model.get_notice_list_id_by_p_ct(Page, noticelist_get)
     notices = []
     none_notice_ids = []
-    for notice_id in notices_ids:  # 遍历所有要返回的Notice_id
-        current_notice_information = redis_client.get(f'cache:notices:{notice_id}')
+    notice_read_key = f'cache:UserReadNotices:{u_id}'
+    for n_id in notices_ids:  # 遍历所有要返回的Notice_id
+        current_notice_information = redis_client.get(f'cache:notices:{n_id}')
         if current_notice_information is not None:  # redis里有
             current_notice_information_json = json.loads(current_notice_information)
-            current_notice_information_json['n_id'] = notice_id
-            n_is_read = 1 if current_notice_information_json["n_read_user"] is not None and num_in_nums(str(u_id),
-                                                                                                        current_notice_information_json[
-                                                                                                            "n_read_user"]) else 0
-            current_notice_information_json.pop('n_read_user')
+            current_notice_information_json['n_id'] = n_id
+            n_is_read = 1
+            if not redis_client.sismember(notice_read_key, n_id):
+                if not user_notice_model.judge_exist_by_u_n(u_id, n_id):
+                    n_is_read = 0
             current_notice_information_json['n_is_read'] = n_is_read
             if 'n_content' in current_notice_information_json:
                 current_notice_information_json.pop('n_content')
             notices.append(current_notice_information_json)
         else:
-            none_notice_ids.append(notice_id)
+            none_notice_ids.append(n_id)
     if none_notice_ids:  # 存在不在redis中的notice
         new_notices = notice_model.get_notice_list_by_ids(none_notice_ids)
         for new_notice in new_notices:
-            n_is_read = 1 if new_notice["n_read_user"] is not None and num_in_nums(str(u_id),
-                                                                                   new_notice["n_read_user"]) else 0
             n_id = new_notice['n_id']
             new_notice.pop('n_id')
+            n_is_read = 1
+            if not redis_client.sismember(notice_read_key, n_id):
+                if not user_notice_model.judge_exist_by_u_n(u_id, n_id):
+                    n_is_read = 0
             redis_client.set(f'cache:notices:{n_id}', json.dumps(new_notice), 1 * 24 * 3600)
-            new_notice.pop('n_read_user')
             new_notice['n_is_read'] = n_is_read
             new_notice['n_id'] = n_id
+            new_notice.pop('n_content')
             notices.append(new_notice)
     notices.sort(key=lambda x: datetime.strptime(x['n_gmt_create'], '%Y-%m-%d %H:%M:%S'), reverse=True)
     result = makePageResult(Page, counts, notices)
@@ -87,34 +91,22 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
 async def notice_get(n_id: int):
     # 鉴权(有权限的用户才可查看)
     u_id = 1
-    notice_read_key = f'cache:notices:{n_id}'
-    redis_value = redis_client.get(notice_read_key)
+    notice_key = f'cache:notices:{n_id}'
+    notice_read_key = f'cache:UserReadNotices:{u_id}'
+    redis_value = redis_client.get(notice_key)
     if redis_value is None:
-        # 如果Redis中没有该公告的已读用户ID数据，则从数据库中获取数据
+        # 如果Redis中没有该公告的数据，则从数据库中获取数据
         ans = notice_model.get_notice_by_n_id(n_id)
-        if ans['n_read_user'] is None:  # 没人读过
-            ans['n_read_user'] = f'{u_id}'
-        elif not num_in_nums(u_id, ans['n_read_user']):  # 用户没读过
-            ans['n_read_user'] = ans['n_read_user'] + f',{u_id}'
-        redis_client.set(notice_read_key, json.dumps(ans), ex=2 * 24 * 3600)
+        if ans is None:
+            return {'message': '公告已删除', 'data': None, 'code': 1}
+        redis_client.set(notice_key, json.dumps(ans), ex=1 * 24 * 3600)
         ans = {"n_content": ans['n_content']}
     else:
-        # 如果Redis中已存在该公告的已读用户ID数据，则将新的用户ID添加到列表中
         redis_notice = json.loads(redis_value)
-        written_flag = 0  # 是否需要重写redis中的内容
-        if 'n_content' not in redis_notice:  # 目前redis没有n_content
-            n_content = notice_model.get_notice_content_by_n_id(n_id)[0]
-            redis_notice['n_content'] = n_content
-            written_flag = 1
-        else:
-            n_content = redis_notice['n_content']
-        if redis_notice['n_read_user'] is None:  # 没人读过
-            redis_notice['n_read_user'] = f'{u_id}'
-            written_flag = 1
-        elif not num_in_nums(u_id, redis_notice['n_read_user']):  # 用户没读过
-            redis_notice['n_read_user'] = redis_notice['n_read_user'] + f',{u_id}'
-            written_flag = 1
-        if written_flag:
-            redis_client.set(notice_read_key, json.dumps(redis_notice), ex=2 * 24 * 3600)
-        ans = {'n_content': n_content}
+        ans = {'n_content': redis_notice['n_content']}
+    if not redis_client.sismember(notice_read_key, n_id):
+        if not user_notice_model.judge_exist_by_u_n(u_id, n_id):
+            redis_client.sadd(notice_read_key, n_id)
+            redis_client.expire(notice_read_key, 24 * 3600)
+            user_notice_model.add_user_notice(n_id, u_id)
     return {'message': '公告内容如下:', 'data': ans, 'code': 0}
