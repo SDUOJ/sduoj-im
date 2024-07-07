@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from fastapi import Request
 from fastapi import WebSocket
 from starlette.websockets import WebSocketDisconnect
@@ -15,6 +15,7 @@ from type.notice import notice_add_interface, notice_update_interface, base_inte
 from type.page import page
 from utils.response import user_standard_response, makePageResult
 from service.message import MessageModel
+from utils.oj_authorization import oj_authorization
 
 notice_router = APIRouter()
 
@@ -34,9 +35,9 @@ async def notice_delete(n_id: notice_delete_interface):
 @notice_router.get("/getNoticeList")  # 查看已推送的公告列表
 @user_standard_response
 async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
-                         ct_id: int = Query(None)):
+                         ct_id: int = Query(None), user_information=Depends(oj_authorization)):
     # 鉴权(有权限的用户才可查看)
-    u_id = 1
+    u_id = user_information['user_id']
     Page = page(pageSize=pageSize, pageNow=pageNow)
     noticelist_get = base_interface(p_id=p_id, ct_id=ct_id)
     notices_ids, counts = notice_model.get_notice_list_id_by_p_ct(Page, noticelist_get)
@@ -88,9 +89,9 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
 
 @notice_router.get("/getNotice/{n_id}")  # 查看某一公告
 @user_standard_response
-async def notice_get(n_id: int):
+async def notice_get(n_id: int, user_information=Depends(oj_authorization)):
     # 鉴权(有权限的用户才可查看)
-    u_id = 1
+    u_id = user_information['user_id']
     notice_key = f'cache:notices:{n_id}'
     notice_read_key = f'cache:UserReadNotices:{u_id}'
     redis_value = redis_client.get(notice_key)

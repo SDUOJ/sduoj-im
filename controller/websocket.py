@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 from model.redis_db import redis_client
 import websockets
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi import Request
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -16,6 +16,7 @@ from type.functions import send_heartbeat, get_redis_message_key
 from type.message import message_add_interface, message_receive_interface, message_get_interface
 from type.notice import base_interface, notice_information_interface, notice_add_interface, notice_interface, \
     notice_update_interface
+from utils.oj_authorization import oj_authorization
 from utils.response import user_standard_response
 
 ws_router = APIRouter()
@@ -23,9 +24,11 @@ message_model = MessageModel()
 notice_model = NoticeModel()
 
 
-@ws_router.websocket("/buildConnect/{m_from}")  # 建立websocket连接(注释掉的部分为判断已读未读)
-async def connect_build(websocket: WebSocket, m_from: int):
+@ws_router.websocket("/buildConnect")  # 建立websocket连接(注释掉的部分为判断已读未读)
+async def connect_build(websocket: WebSocket, user_information=Depends(oj_authorization)):
+    m_from = user_information['user_id']
     try:
+
         if m_from not in ws_manager.active_connections:  # 发送者刚上线
             await ws_manager.connect(websocket, m_from)
             redis_user_key = f'cache:unreadUsers:{m_from}'
@@ -46,7 +49,8 @@ async def connect_build(websocket: WebSocket, m_from: int):
                         send_thing = notice_information
                     else:
                         missed_message = missed.split('%')
-                        unsend_message = redis_client.zrange(missed_message[0], int(missed_message[1]), int(missed_message[1]))
+                        unsend_message = redis_client.zrange(missed_message[0], int(missed_message[1]),
+                                                             int(missed_message[1]))
                         if unsend_message:  # 似乎多余
                             send_thing = json.loads(unsend_message[0])
                         else:
@@ -94,7 +98,7 @@ async def connect_build(websocket: WebSocket, m_from: int):
                     #             websocket)
                     #     redis_client.set(unread_key, 1, 1 * 24 * 3600)
                 else:  # 接收者不在线
-                    redis_message_key = redis_message_key + '%'+str(m_id)
+                    redis_message_key = redis_message_key + '%' + str(m_id)
                     redis_client.rpush(f'cache:unreadUsers:{m_to}', redis_message_key)
                     redis_client.ltimeset(f'cache:unreadUsers:{m_to}', 1 * 24 * 3600)
                     # unread_key = f"p-{data['p_id']}-{m_from}-{data['m_to']}-{current_timestamp}" if 'p_id' in data else f"ct-{data['ct_id']}-{m_from}-{data['m_to']}-{current_timestamp}"

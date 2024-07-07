@@ -1,7 +1,7 @@
 import json
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from model.redis_db import redis_client
 from service.message import MessageModel
@@ -9,6 +9,7 @@ from type.functions import get_redis_message_key
 from type.message import message_get_interface
 from type.notice import base_interface
 from type.page import page
+from utils.oj_authorization import oj_authorization
 from utils.response import user_standard_response, makePageResult
 
 message_router = APIRouter()
@@ -18,9 +19,9 @@ message_model = MessageModel()
 @message_router.get("/getMessage")  # 查看与某人的消息
 @user_standard_response
 async def message_get(m_to: int, pageNow: int, pageSize: int, last_m_id: Optional[int] = None,
-                      p_id: Optional[int] = None, ct_id: Optional[int] = None):
+                      p_id: Optional[int] = None, ct_id: Optional[int] = None, user_information=Depends(oj_authorization)):
     # 处理查看消息逻辑
-    m_from = 1
+    m_from = user_information['user_id']
     Page = page(pageSize=pageSize, pageNow=pageNow)
     data = {'m_to': m_to, 'p_id': p_id} if p_id is not None else {'m_to': m_to, 'ct_id': ct_id}
     redis_message_key = get_redis_message_key(m_from, data)
@@ -55,9 +56,9 @@ async def message_get(m_to: int, pageNow: int, pageSize: int, last_m_id: Optiona
 
 @message_router.get("/viewMessage")  # 查看自己的提问
 @user_standard_response
-async def message_view(p_id: Optional[int] = None, ct_id: Optional[int] = None):
+async def message_view(p_id: Optional[int] = None, ct_id: Optional[int] = None, user_information=Depends(oj_authorization)):
     # 处理查看提问列表逻辑
-    m_from = 1
+    m_from = user_information['user_id']
     data = {'p_id': p_id} if p_id is not None else {'ct_id': ct_id}
     redis_message_list_value = []
     redis_message_list_key = f"cache:messageLists:p:{data['p_id']}-{m_from}" if 'p_id' in data else f"cache:messageLists:ct-{data['ct_id']}-{m_from}"
