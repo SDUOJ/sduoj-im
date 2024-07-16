@@ -37,7 +37,7 @@ async def notice_delete(n_id: notice_delete_interface):
 async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
                          ct_id: int = Query(None), user_information=Depends(oj_authorization)):
     # 鉴权(有权限的用户才可查看)
-    u_id = user_information['user_id']
+    u_id = user_information['userId']
     Page = page(pageSize=pageSize, pageNow=pageNow)
     noticelist_get = base_interface(p_id=p_id, ct_id=ct_id)
     notices_ids, counts = notice_model.get_notice_list_id_by_p_ct(Page, noticelist_get)
@@ -54,8 +54,6 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
                 if not user_notice_model.judge_exist_by_u_n(u_id, n_id):
                     n_is_read = 0
             current_notice_information_json['n_is_read'] = n_is_read
-            if 'n_content' in current_notice_information_json:
-                current_notice_information_json.pop('n_content')
             notices.append(current_notice_information_json)
         else:
             none_notice_ids.append(n_id)
@@ -71,7 +69,6 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
             redis_client.set(f'cache:notices:{n_id}', json.dumps(new_notice), 1 * 24 * 3600)
             new_notice['n_is_read'] = n_is_read
             new_notice['n_id'] = n_id
-            new_notice.pop('n_content')
             notices.append(new_notice)
     notices.sort(key=lambda x: datetime.strptime(x['n_gmt_create'], '%Y-%m-%d %H:%M:%S'), reverse=True)
     result = makePageResult(Page, counts, notices)
@@ -91,7 +88,7 @@ async def noticelist_get(pageNow: int, pageSize: int, p_id: int = Query(None),
 @user_standard_response
 async def notice_get(n_id: int, user_information=Depends(oj_authorization)):
     # 鉴权(有权限的用户才可查看)
-    u_id = user_information['user_id']
+    u_id = user_information['userId']
     notice_key = f'cache:notices:{n_id}'
     notice_read_key = f'cache:UserReadNotices:{u_id}'
     redis_value = redis_client.get(notice_key)

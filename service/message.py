@@ -16,7 +16,7 @@ class MessageModel(dbSession):
             session.commit()
             return obj_add.m_gmt_create, obj_add.m_id
 
-    def get_message(self, m_from: int, page, message_get: message_get_interface, last_m_id: int = None):
+    def get_message(self, m_from: int, messageNum: int, message_get: message_get_interface, last_m_id: int = None):
         with self.get_db() as session:
             messages = session.query(Message.m_from, Message.m_id, Message.m_content, Message.m_gmt_create).filter(
                 or_(
@@ -30,11 +30,10 @@ class MessageModel(dbSession):
             )
             if last_m_id is not None:
                 messages = messages.filter(Message.m_id > last_m_id)
-            counts = messages.count()
             messages = messages.order_by(Message.m_gmt_create).all()
-            messages = messages[page.offset():page.offset() + page.limit()]
+            messages = messages[:messageNum]
             session.commit()
-            return messages, counts
+            return messages
 
     def get_message_list(self, m_from: int, base: base_interface):
         with self.get_db() as session:

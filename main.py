@@ -76,7 +76,7 @@ app.add_middleware(
 
 
 def main():
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000, ssl_keyfile="./.cert/key.pem", ssl_certfile="./.cert/cert.pem")
 
 
 if __name__ == "__main__":

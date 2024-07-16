@@ -16,7 +16,7 @@ from type.functions import send_heartbeat, get_redis_message_key
 from type.message import message_add_interface, message_receive_interface, message_get_interface
 from type.notice import base_interface, notice_information_interface, notice_add_interface, notice_interface, \
     notice_update_interface
-from utils.oj_authorization import oj_authorization
+from utils.oj_authorization import oj_authorization,oj_websocket_authorization
 from utils.response import user_standard_response
 
 ws_router = APIRouter()
@@ -25,8 +25,8 @@ notice_model = NoticeModel()
 
 
 @ws_router.websocket("/buildConnect")  # 建立websocket连接(注释掉的部分为判断已读未读)
-async def connect_build(websocket: WebSocket, user_information=Depends(oj_authorization)):
-    m_from = user_information['user_id']
+async def connect_build(websocket: WebSocket, user_information=Depends(oj_websocket_authorization)):
+    m_from = user_information['userId']
     try:
 
         if m_from not in ws_manager.active_connections:  # 发送者刚上线
@@ -154,11 +154,6 @@ async def connect_build(websocket: WebSocket, user_information=Depends(oj_author
                     redis_client.set(notice_key, json.dumps(redis_notice), ex=1 * 24 * 3600)
                 redis_notice.pop('n_content')
                 await ws_manager.broadcast(json.dumps(redis_notice), student_list, n_id)
-
-
-
-
-
     except Exception as e:  # 所有异常
         ws_manager.disconnect(m_from)
     # except asyncio.TimeoutError:  # 无动作超时
@@ -167,3 +162,6 @@ async def connect_build(websocket: WebSocket, user_information=Depends(oj_author
     #     ws_manager.disconnect(m_from)
     # except websockets.exceptions.ConnectionClosedOK:  # 主动断开
     #     ws_manager.disconnect(m_from)
+
+
+

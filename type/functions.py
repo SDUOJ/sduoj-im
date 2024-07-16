@@ -12,7 +12,7 @@ def num_in_nums(num, nums):
 
 
 async def send_heartbeat(websocket: WebSocket):
-    heartbeat_interval = 300
+    heartbeat_interval = 300000
     try:
         while True:
             await asyncio.sleep(heartbeat_interval)  # 发送一次心跳时间
