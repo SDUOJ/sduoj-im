@@ -1,12 +1,18 @@
 from pydantic import BaseModel, ConfigDict
 from type.notice import base_interface
 
-class message_get_interface(base_interface):
-    m_to: int
 
-class message_receive_interface(message_get_interface):
+class message_group_interface(BaseModel):
+    mg_id: int
+
+
+class message_receive_interface(message_group_interface):
     m_content: str
 
 
 class message_add_interface(message_receive_interface):
-    m_from: int
+    u_id: int
+
+
+class message_group_add_interface(base_interface):
+    u_id: int

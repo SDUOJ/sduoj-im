@@ -1,14 +1,16 @@
 import asyncio
+import json
 import time
-from fastapi import WebSocket
+from typing import Union
+
+import requests
+from fastapi import WebSocket, HTTPException
 import websockets
 from model.redis_db import redis_client
 
 import time
 
-def num_in_nums(num, nums):
-    nums_list = nums.split(",")
-    return True if str(num) in nums_list else False
+from sduojApi import contestIdToGroupIdList, examIdToGroupIdList, getGroupMember
 
 
 async def send_heartbeat(websocket: WebSocket):
@@ -22,14 +24,35 @@ async def send_heartbeat(websocket: WebSocket):
         pass
 
 
-def get_redis_message_key(m_from, data):
-    if m_from > data['m_to']:  # 固定格式为:p/ct_id - 小id - 大id
-        m_small = data['m_to']
-        m_big = m_from
-    else:
-        m_small = m_from
-        m_big = data['m_to']
-    return f"cache:messages:p:{data['p_id']}-{m_small}-{m_big}" if 'p_id' in data else f"cache:messages:ct-{data['ct_id']}-{m_small}-{m_big}"
+# role_group = exam_model.get_role_group(e_id)
+async def judge_in_groups(ct_id, e_id, groups):
+    if ct_id is not None:
+        current_group = await contestIdToGroupIdList(ct_id)
+    elif e_id is not None:
+        current_group = await examIdToGroupIdList(e_id)
+    if not int(current_group[0]) in groups:  # 判断用户是否在组中(是否有权限)
+        raise HTTPException(status_code=403, detail="当前用户不在此组中")
+    return int(current_group[0])
+
+
+async def get_group_student(ct_id, e_id):
+    if ct_id is not None:
+        current_group = await contestIdToGroupIdList(ct_id)
+    elif e_id is not None:
+        current_group = await examIdToGroupIdList(e_id)
+    return await getGroupMember(int(current_group[0]))
+
+
+# def get_redis_message_key(m_from, data):  # 私聊情况
+#     if m_from > data['m_to']:  # 固定格式为:p/ct_id - 小id - 大id
+#         m_small = data['m_to']
+#         m_big = m_from
+#     else:
+#         m_small = m_from
+#         m_big = data['m_to']
+#     return f"cache:messages:p:{data['e_id']}-{m_small}-{m_big}" if 'e_id' in data else f"cache:messages:ct-{data['ct_id']}-{m_small}-{m_big}"
+#
+
 
 # def check_keys_absent_in_redis(keys_list):
 #     # 检查每个键是否存在于 Redis 中
@@ -62,9 +85,9 @@ def get_redis_message_key(m_from, data):
 #     return read_receipts
 #
 #
-# def get_latest_redis_value(p_id, m_from, m_to):
+# def get_latest_redis_value(e_id, m_from, m_to):
 #     # 构造模糊查询的模式
-#     pattern = f"p-{p_id}-{m_from}-{m_to}-*"
+#     pattern = f"p-{e_id}-{m_from}-{m_to}-*"
 #     redis_client.set(1, 1)
 #     # 使用 KEYS 命令进行模糊查询
 #     keys = redis_client.keys(pattern)
