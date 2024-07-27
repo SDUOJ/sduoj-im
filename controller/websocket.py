@@ -9,7 +9,7 @@ from model.websocket import ws_manager
 from service.group import ContestExamModel
 from service.message import MessageModel, MessageGroupModel
 from service.notice import NoticeModel
-from type.functions import send_heartbeat, judge_in_groups, get_group_student
+from type.functions import send_heartbeat, judge_in_groups, get_group_student, get_message_group_members, is_admin
 from type.message import message_add_interface, message_receive_interface
 from type.notice import notice_add_interface, notice_update_interface
 
@@ -92,20 +92,15 @@ async def connect_build(websocket: WebSocket, user_information=oj_websocket_auth
                 redis_client.zadd(redis_message_key, {json.dumps(data): m_id})
                 redis_client.ltimeset(redis_message_key, 3 * 3600)
                 data.pop('m_id')
-                redis_members = redis_client.get(f"cache:messageGroupMember:{data['mg_id']}")
-                if redis_members is not None:
-                    members = json.loads(redis_members)
-                else:
-                    members = await getGroupMember(role_group_id)
-                    members.append(await getUserInformation(message_information.u_id))
-                    redis_client.set(f"cache:messageGroupMember:{data['mg_id']}", json.dumps(members), ex=9000)
+                members = await get_message_group_members(role_group_id, message_information.u_id,
+                                                          data['mg_id'], is_admin(role_group_id, groups))  # 获取全部成员
                 await ws_manager.broadcast(0, json.dumps(data), members, m_id, m_from, data['mg_id'])
 
             elif mode == 2:
                 # 处理发布公告逻辑
                 if not role_group_id in groups:  # 用户不在TA组内,无权限发布公告
                     raise WebSocketException(code=403, reason="用户无权限")
-                student_list = get_group_student(data['ct_id'], data['e_id'])
+                student_list = await get_group_student(data['ct_id'], data['e_id'])
                 nt_content = data['nt_content']
                 data['u_id'] = m_from
                 notice_add = notice_add_interface(**data)
@@ -129,7 +124,7 @@ async def connect_build(websocket: WebSocket, user_information=oj_websocket_auth
             elif mode == 3:
                 if not role_group_id in groups:  # 用户不在TA组内,无权限发布公告
                     raise WebSocketException(code=403, reason="用户无权限")
-                student_list = get_group_student(data['ct_id'], data['e_id'])
+                student_list = await get_group_student(data['ct_id'], data['e_id'])
                 # 处理修改公告逻辑
                 notice_update = notice_update_interface(**data)
                 timenow = notice_model.update_notice(notice_update)

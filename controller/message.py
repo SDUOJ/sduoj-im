@@ -3,9 +3,9 @@ import json
 from typing import Optional
 
 from controller.websocket import WebSocketCustomException
-from type.functions import judge_in_groups
+from type.functions import judge_in_groups, get_message_group_members, is_admin
 from fastapi import APIRouter, Depends, HTTPException, WebSocketException
-from sduojApi import getGroupMember
+from sduojApi import getGroupMember, getUserInformation
 from model.redis_db import redis_client
 from service.group import ContestExamModel
 from service.message import MessageModel, MessageGroupModel
@@ -70,9 +70,11 @@ async def message_get(mg_id: int, last_m_id: Optional[int] = None, user_informat
 async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
                        user_information=Depends(oj_http_authorization)):
     # 处理查看提问列表逻辑
+    groups = user_information['groups']  # 查出用户所属组
+    await judge_in_groups(ct_id, e_id, groups)  # 鉴权
     m_from = user_information['userId']
     data = {'e_id': e_id} if e_id is not None else {'ct_id': ct_id}
-    redis_message_list_value = []
+    # redis_message_list_value = []
     # redis_message_list_key = f"cache:messageLists:e:{data['e_id']}-{m_from}" if 'e_id' in data else f"cache:messageLists:ct-{data['ct_id']}-{m_from}"
     # all_data = redis_client.hgetall(redis_message_list_key)
     # if all_data:
@@ -83,6 +85,11 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
     # else:
     base = base_interface.model_validate(data)
     redis_message_list_value = message_model.get_message_list(m_from, base)
+    for message_list in redis_message_list_value:
+        role_group_id = contest_exam_model.get_role_group(ct_id, e_id)[0]
+        members = await get_message_group_members(role_group_id, m_from, message_list['mg_id'],
+                                                  is_admin(role_group_id, groups))
+        message_list['members'] = members
     # for mes in redis_message_list_value:
     #     redis_client.hset(redis_message_list_key, mes['mg_id'], json.dumps(
     #         {"m_last_content": mes['m_last_content'], "m_gmt_create": mes['m_gmt_create'], "mg_id": mes['mg_id']}))
@@ -93,18 +100,17 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
 @message_router.post("/addMessageGroup")  # 创建群聊组(用户点击提问)
 @user_standard_response
 async def message_group_add(mg_add: base_interface, user_information=Depends(oj_http_authorization)):
-    try:
-        u_id = user_information['userId']
-        groups = user_information['groups']  # 查出用户所属组
-        await judge_in_groups(mg_add.ct_id, mg_add.e_id, groups)  # 鉴权
-        mg_id = message_group_model.add_message_group(
-            message_group_add_interface(ct_id=mg_add.ct_id, u_id=u_id, e_id=mg_add.e_id))
-        role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id)[0]
-        managers = getGroupMember(role_group_id)
-        redis_client.set(f"cache:messageGroupMember:{mg_id}", json.dumps(managers), ex=9000)
-        result = {'mg_id': mg_id, 'members': managers}
-    except Exception as e:
-        raise HTTPException(status_code=409, detail="创建失败，资源冲突")
+    u_id = user_information['userId']
+    groups = user_information['groups']  # 查出用户所属组
+    await judge_in_groups(mg_add.ct_id, mg_add.e_id, groups)  # 鉴权
+    exist_mg_id = message_group_model.get_mg_id(mg_add)
+    if exist_mg_id is not None:
+        return {'message': '群聊组已存在', 'data': {'mg_id': exist_mg_id[0]}, 'code': 0}
+    mg_id = message_group_model.add_message_group(
+        message_group_add_interface(ct_id=mg_add.ct_id, u_id=u_id, e_id=mg_add.e_id))
+    role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id)[0]
+    members = await get_message_group_members(role_group_id, u_id, mg_id,is_admin(role_group_id,groups))  # 获取全部成员
+    result = {'mg_id': mg_id, 'members': members}
     return {'message': '创建群聊组成功', 'data': result, 'code': 0}
 
 # @message_router.get("/getMessage")  # 查看与某人的消息(私聊)

@@ -95,3 +95,15 @@ class MessageGroupModel(dbSession):
             ).first()
             session.commit()
             return result
+
+    def get_mg_id(self, base: base_interface):
+        with self.get_db() as session:
+            mg_id = session.query(
+                MessageGroup.mg_id
+            ).filter(
+                or_(
+                    and_(MessageGroup.e_id == base.e_id, base.e_id is not None),
+                    and_(MessageGroup.ct_id == base.ct_id, base.ct_id is not None)
+                )
+            ).first()
+            return mg_id
