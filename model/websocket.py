@@ -9,18 +9,18 @@ from typing import Dict
 class WSConnectionManager:
     def __init__(self):
         # 存放激活的ws连接对象
-        self.active_connections: Dict[int, WebSocket] = {}
+        self.active_connections: Dict[str, WebSocket] = {}
 
-    async def connect(self, ws: WebSocket, u_id: int):
+    async def connect(self, ws: WebSocket, username: str):
         # 等待连接
         await ws.accept()
         # 存储ws连接对象
-        self.active_connections[u_id] = ws
+        self.active_connections[username] = ws
 
-    def disconnect(self, u_id: int):
+    def disconnect(self, username: str):
         # 关闭时 移除ws对象
-        if u_id in self.active_connections:
-            del self.active_connections[u_id]
+        if username in self.active_connections:
+            del self.active_connections[username]
 
     @staticmethod
     async def send_personal_message(message, ws: WebSocket):

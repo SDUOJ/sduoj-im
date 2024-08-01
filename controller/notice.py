@@ -1,22 +1,17 @@
-import asyncio
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Query, Depends, WebSocketException
-from fastapi import Request
-from fastapi import WebSocket
-from starlette.websockets import WebSocketDisconnect
+from fastapi import APIRouter, Query, Depends, HTTPException
+
+from auth import cover_header, is_role_member, is_admin, judge_in_groups
 from model.redis_db import redis_client
-from model.websocket import ws_manager
+from sduojApi import getUserId
 from service.group import ContestExamModel
+from service.message import MessageModel
 from service.notice import NoticeModel, UserNoticeModel
-from type.functions import judge_in_groups
-from type.notice import notice_add_interface, notice_update_interface, base_interface, notice_information_interface, \
-    notice_delete_interface
+from type.notice import base_interface, notice_delete_interface
 from type.page import page
 from utils.response import user_standard_response, makePageResult
-from service.message import MessageModel
-from utils.oj_authorization import oj_http_authorization
 
 notice_router = APIRouter()
 
@@ -28,12 +23,12 @@ contest_exam_model = ContestExamModel()
 
 @notice_router.post("/deleteNotice")  # 删除公告
 @user_standard_response
-async def notice_delete(nt_id: notice_delete_interface, user_information=Depends(oj_http_authorization)):
-    groups = user_information['groups']  # 查出用户所属组
+async def notice_delete(nt_id: notice_delete_interface, SDUOJUserInfo=Depends(cover_header)):
+    groups = SDUOJUserInfo["groups"]  # 查出用户所属组
     ids = notice_model.get_ct_e_id(nt_id.nt_id)
     role_group_id = contest_exam_model.get_role_group(ids.ct_id, ids.e_id)  # 判断用户是否在TA组里
-    if not role_group_id in groups:  # 用户不在TA组内,无权限删除公告
-        raise WebSocketException(code=403, reason="用户无权限")
+    if not is_role_member(role_group_id, groups) and not is_admin(SDUOJUserInfo):  # 用户不在TA组内,无权限删除公告
+        raise HTTPException(detail="Permission Denial", status_code=403)
     notice_model.delete_notice(nt_id.nt_id)
     redis_client.delete(f'cache:notices:{nt_id.nt_id}')
     return {'message': '删除成功', 'data': True, 'code': 0}
@@ -43,11 +38,11 @@ async def notice_delete(nt_id: notice_delete_interface, user_information=Depends
 @notice_router.get("/getNoticeList")  # 查看已推送的公告列表
 @user_standard_response
 async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
-                         ct_id: int = Query(None), user_information=Depends(oj_http_authorization)):
+                         ct_id: int = Query(None), SDUOJUserInfo=Depends(cover_header)):
     # 鉴权(有权限的用户才可查看)
-    u_id = user_information['userId']
-    groups = user_information['groups']  # 查出用户所属组
-    await judge_in_groups(ct_id, e_id, groups)  # 鉴权
+    groups = SDUOJUserInfo['groups']  # 查出用户所属组
+    await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo)  # 鉴权
+    u_id = await getUserId(SDUOJUserInfo["username"])
     Page = page(pageSize=pageSize, pageNow=pageNow)
     noticelist_get = base_interface(e_id=e_id, ct_id=ct_id)
     notices_ids, counts = notice_model.get_notice_list_id_by_p_ct(Page, noticelist_get)
@@ -96,12 +91,12 @@ async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
 
 @notice_router.get("/getNotice/{nt_id}")  # 查看某一公告
 @user_standard_response
-async def notice_get(nt_id: int, user_information=Depends(oj_http_authorization)):
+async def notice_get(nt_id: int, SDUOJUserInfo=Depends(cover_header)):
     # 鉴权(有权限的用户才可查看)
-    u_id = user_information['userId']
+    u_id = await getUserId(SDUOJUserInfo["username"])
     ids = notice_model.get_ct_e_id(nt_id)
-    groups = user_information['groups']  # 查出用户所属组
-    await judge_in_groups(ids.ct_id, ids.e_id, groups)  # 鉴权
+    groups = SDUOJUserInfo['groups']  # 查出用户所属组
+    await judge_in_groups(ids.ct_id, ids.e_id, groups, SDUOJUserInfo)  # 鉴权
     notice_key = f'cache:notices:{nt_id}'
     notice_read_key = f'cache:UserReadNotices:{u_id}'
     redis_value = redis_client.get(notice_key)

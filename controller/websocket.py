@@ -1,15 +1,17 @@
 import asyncio
 import json
-from utils.oj_authorization import oj_websocket_authorization
-from fastapi import APIRouter, HTTPException, WebSocketException
+
+from fastapi import APIRouter, WebSocketException, Depends
 from fastapi import WebSocket
-from sduojApi import getGroupMember, getUserInformation, contestIdToGroupIdList, examIdToGroupIdList
+
+from auth import is_role_member, cover_header, is_admin
 from model.redis_db import redis_client
 from model.websocket import ws_manager
+from sduojApi import getUserId
 from service.group import ContestExamModel
 from service.message import MessageModel, MessageGroupModel
 from service.notice import NoticeModel
-from type.functions import send_heartbeat, judge_in_groups, get_group_student, get_message_group_members, is_admin
+from type.functions import send_heartbeat, get_group_student, get_message_group_members
 from type.message import message_add_interface, message_receive_interface
 from type.notice import notice_add_interface, notice_update_interface
 
@@ -28,11 +30,12 @@ contest_exam_model = ContestExamModel()
 
 
 @ws_router.websocket("/buildConnect")  # 建立websocket连接(注释掉的部分为判断已读未读)
-async def connect_build(websocket: WebSocket, user_information=oj_websocket_authorization):
-    m_from = user_information['userId']
+async def connect_build(websocket: WebSocket, SDUOJUserInfo=Depends(cover_header)):
+    m_username = SDUOJUserInfo["username"]
     try:
-        if m_from not in ws_manager.active_connections:  # 发送者刚上线
-            await ws_manager.connect(websocket, m_from)
+        if m_username not in ws_manager.active_connections:  # 发送者刚上线
+            await ws_manager.connect(websocket, m_username)
+            m_from = await getUserId(m_username)
             redis_user_key = f'cache:unreadUsers:{m_from}'
             missed_msg_notice = redis_client.lrange(redis_user_key, 0, -1)
             redis_set = set()  # 用来去重
@@ -65,20 +68,22 @@ async def connect_build(websocket: WebSocket, user_information=oj_websocket_auth
 
         asyncio.create_task(send_heartbeat(websocket))
         while True:
+            m_from = await getUserId(m_username)
             data = await asyncio.wait_for(websocket.receive_json(), timeout=10000)  # websocket过期时间
             mode = data['mode']  # 1为向他人发送消息; 2为发布公告; 3为修改公告
             data.pop('mode')
             # 鉴权
             message_information = message_group_model.get_mg_by_id(data['mg_id'])  # 找群组创建者，不存在即群不存在
             if message_information is None:
-                raise WebSocketCustomException(code=404, reason="当前群聊组不存在")
+                raise WebSocketCustomException(code=404, reason="Not find")
             else:
-                groups = user_information['groups']  # 查出用户所属组
-                # await judge_in_groups(message_information.ct_id, message_information.e_id, groups)  # 判断用户是否在这个组里（不用）
+                groups = SDUOJUserInfo['groups']  # 查出用户所属组
                 role_group_id = contest_exam_model.get_role_group(message_information.ct_id,
                                                                   message_information.e_id)  # 判断用户是否在群聊组里
-                if not role_group_id in groups and not message_information.build_u_id == m_from:  # 用户不在TA组内也不是发起答疑人
-                    raise WebSocketException(code=403, reason="用户不在当前群聊组内")
+                if not is_role_member(role_group_id,
+                                      groups) and not message_information.build_u_id == m_from and not is_admin(
+                    SDUOJUserInfo):  # 用户不在TA组内也不是发起答疑人
+                    raise WebSocketException(code=403, reason="Permission Denial")
             if mode == 1:
                 # 处理消息发送逻辑
                 message_add = message_receive_interface(**data)
@@ -93,12 +98,13 @@ async def connect_build(websocket: WebSocket, user_information=oj_websocket_auth
                 redis_client.ltimeset(redis_message_key, 3 * 3600)
                 data.pop('m_id')
                 members = await get_message_group_members(role_group_id, message_information.u_id,
-                                                          data['mg_id'], is_admin(role_group_id, groups))  # 获取全部成员
+                                                          data['mg_id'],
+                                                          is_role_member(role_group_id, groups))  # 获取全部成员
                 await ws_manager.broadcast(0, json.dumps(data), members, m_id, m_from, data['mg_id'])
 
             elif mode == 2:
                 # 处理发布公告逻辑
-                if not role_group_id in groups:  # 用户不在TA组内,无权限发布公告
+                if not is_role_member(role_group_id,groups) and not is_admin(SDUOJUserInfo):  # 用户不在TA组内,无权限发布公告
                     raise WebSocketException(code=403, reason="用户无权限")
                 student_list = await get_group_student(data['ct_id'], data['e_id'])
                 nt_content = data['nt_content']
@@ -122,7 +128,7 @@ async def connect_build(websocket: WebSocket, user_information=oj_websocket_auth
                 notice_information.update(key_value)
                 redis_client.set(notice_read_key, json.dumps(notice_information), 1 * 24 * 3600)
             elif mode == 3:
-                if not role_group_id in groups:  # 用户不在TA组内,无权限发布公告
+                if not is_role_member(role_group_id,groups) and not is_admin(SDUOJUserInfo):  # 用户不在TA组内,无权限发布公告
                     raise WebSocketException(code=403, reason="用户无权限")
                 student_list = await get_group_student(data['ct_id'], data['e_id'])
                 # 处理修改公告逻辑
@@ -147,7 +153,7 @@ async def connect_build(websocket: WebSocket, user_information=oj_websocket_auth
         error_message = json.dumps({"code": e.code, "reason": e.reason})
         await websocket.send_text(f"Error: {error_message}")
     except Exception as e:  # 所有异常
-        ws_manager.disconnect(m_from)
+        ws_manager.disconnect(m_username)
 
     # except asyncio.TimeoutError:  # 无动作超时
     #     ws_manager.disconnect(m_from)

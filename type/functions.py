@@ -24,17 +24,6 @@ async def send_heartbeat(websocket: WebSocket):
         pass
 
 
-# role_group = exam_model.get_role_group(e_id)
-async def judge_in_groups(ct_id, e_id, groups):
-    if ct_id is not None:
-        current_group = await contestIdToGroupIdList(ct_id)
-    elif e_id is not None:
-        current_group = await examIdToGroupIdList(e_id)
-    if not int(current_group[0]) in groups:  # 判断用户是否在组中(是否有权限)
-        raise HTTPException(status_code=403, detail="当前用户不在此组中")
-    return int(current_group[0])
-
-
 async def get_group_student(ct_id, e_id):
     if ct_id is not None:
         current_group = await contestIdToGroupIdList(ct_id)
@@ -55,10 +44,6 @@ async def get_message_group_members(role_group_id, u_id, mg_id, is_admin):
         members.append({'is_admin': is_admin})
         redis_client.set(f"cache:messageGroupMember:{mg_id}", json.dumps(members), ex=9000)
     return members
-
-
-def is_admin(role_group_id, groups):
-    return role_group_id in groups
 
 # def get_redis_message_key(m_from, data):  # 私聊情况
 #     if m_from > data['m_to']:  # 固定格式为:p/ct_id - 小id - 大id

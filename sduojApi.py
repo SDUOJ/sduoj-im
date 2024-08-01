@@ -92,9 +92,15 @@ async def getUserInformation(userId):
     return {'userId': data['userId'], 'username': data['username'], 'email': data['email']}
 
 
+# username 查询 userId （固定的数据信息，不会改变）
+async def getUserId(username):
+    data = await make_get(
+        "user-service",
+        "/internal/user/usernameToUserId",
+        {"username": username}
+    )
+    return data
 # async def main():
-#     print(await getUserInformation(1))
+#     print(await getGroupMember(1))
 #
-#
-# # 调用主函数
 # asyncio.run(main())

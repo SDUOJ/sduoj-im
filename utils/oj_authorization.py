@@ -17,7 +17,7 @@ def oj_http_authorization(request: Request):  # 权限认证方法
         if token is not None:
             user_session_key = f'cache:sessions:{token}'
             user_information = json.loads(json.loads(redis_client.hget(user_session_key, 'sessionAttr:SDUOJUserInfo')))
-            return user_information if user_information == '' else None
+            return user_information if user_information != '' else None
     except Exception as e:
         raise HTTPException(
             status_code=401,
