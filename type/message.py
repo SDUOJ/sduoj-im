@@ -11,8 +11,8 @@ class message_receive_interface(message_group_interface):
 
 
 class message_add_interface(message_receive_interface):
-    u_id: int
+    username: str
 
 
 class message_group_add_interface(base_interface):
-    u_id: int
+    username: str

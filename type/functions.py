@@ -10,7 +10,7 @@ from model.redis_db import redis_client
 
 import time
 
-from sduojApi import contestIdToGroupIdList, examIdToGroupIdList, getGroupMember, getUserInformation
+from sduojApi import contestIdToGroupIdList, examIdToGroupIdList, getGroupMember, getUserInformation, getUserId
 
 
 async def send_heartbeat(websocket: WebSocket):
@@ -32,16 +32,16 @@ async def get_group_student(ct_id, e_id):
     return await getGroupMember(int(current_group[0]))
 
 
-async def get_message_group_members(role_group_id, u_id, mg_id, is_admin):
+async def get_message_group_members(role_group_id, username, mg_id):
     redis_members = redis_client.get(f"cache:messageGroupMember:{mg_id}")
     if redis_members is not None:
         members = json.loads(redis_members)
     else:
         members = await getGroupMember(role_group_id)
-        build_member = await getUserInformation(u_id)
+        u_id = await getUserId(username)
+        build_member = await getUserInformation(u_id, 1)
         members.append(build_member)
         members.append({'build_username': build_member['username']})
-        members.append({'is_admin': is_admin})
         redis_client.set(f"cache:messageGroupMember:{mg_id}", json.dumps(members), ex=9000)
     return members
 

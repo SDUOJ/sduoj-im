@@ -17,17 +17,14 @@ class notice_delete_interface(BaseModel):
     nt_id: int
 
 
-class notice_interface(base_interface, notice_information_interface):
-    pass
-
-
-class notice_add_interface(notice_interface):
-    u_id: int
+class notice_add_interface(notice_information_interface, base_interface):
+    username: str
+    up_username: str
 
 
 class notice_user_add_interface(notice_delete_interface):
-    u_id: int
+    username: str
 
 
-class notice_update_interface(notice_interface, notice_delete_interface):
-    pass
+class notice_update_interface(notice_information_interface, notice_delete_interface):
+    up_username: str

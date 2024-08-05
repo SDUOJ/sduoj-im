@@ -1,54 +1,33 @@
-from typing import List
+from sqlalchemy import (
+    Column,
+    DateTime,
+    VARCHAR,
+    func, Boolean, BigInteger, UniqueConstraint, )
 
-from model.redis_db import redis_client
-from type.notice import notice_information_interface
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from typing import Dict
-
-
-class WSConnectionManager:
-    def __init__(self):
-        # 存放激活的ws连接对象
-        self.active_connections: Dict[str, WebSocket] = {}
-
-    async def connect(self, ws: WebSocket, username: str):
-        # 等待连接
-        await ws.accept()
-        # 存储ws连接对象
-        self.active_connections[username] = ws
-
-    def disconnect(self, username: str):
-        # 关闭时 移除ws对象
-        if username in self.active_connections:
-            del self.active_connections[username]
-
-    @staticmethod
-    async def send_personal_message(message, ws: WebSocket):
-        # 发送个人消息
-        if type(message) != str:
-            await ws.send_json(message)
-        else:
-            await ws.send_text(message)
-
-    async def broadcast(self, mode: int, message, u_list: list, project_id: int = None, m_from: int = None,
-                        mg_id: int = None):
-        # 广播通知
-        for u_id in u_list:
-            u_id = u_id['userId']
-            if u_id == m_from:
-                continue
-            if u_id in ws_manager.active_connections:
-                if type(message) == str:
-                    await self.active_connections[u_id].send_text(message)
-                else:
-                    await self.active_connections[u_id].send_json(message)
-            else:
-                if mode == 0:
-                    redis_client.rpush(f'cache:unreadUsers:{u_id}', f'cache:messageGroup:{mg_id}-{project_id}')
-                    redis_client.ltimeset(f'cache:unreadUsers:{u_id}', 1 * 24 * 3600)
-                elif mode == 1:
-                    redis_client.rpush(f'cache:unreadUsers:{u_id}', f'notice-{project_id}')
-                    redis_client.ltimeset(f'cache:unreadUsers:{u_id}', 1 * 24 * 3600)
+from model.db import Base
 
 
-ws_manager = WSConnectionManager()
+class Websocket(Base):
+    __tablename__ = 'oj_websocket'
+    w_id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键')
+    username = Column(VARCHAR(63), nullable=False, index=True, comment='用户名')
+    w_token = Column(VARCHAR(32), unique=True, nullable=False, index=True, comment='session唯一识别串')  # token，非空，唯一
+    w_is_closed = Column(Boolean, nullable=False, default=False, index=True, comment='是否关闭, 0.正常工作, 1.已断开')
+    w_gmt_create = Column(DateTime, nullable=False, server_default=func.now(), comment='创建时间')
+    w_gmt_modified = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now(),
+                            comment='修改时间')
+    w_features = Column(VARCHAR(64), nullable=False, default='', comment='特性字段')
+
+
+class Missed(Base):
+    __tablename__ = 'oj_missed'
+    ms_id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键')
+    username = Column(VARCHAR(63), nullable=False, index=True, comment='用户名')
+    ms_key = Column(VARCHAR(32), unique=True, nullable=False, index=True, comment='错过消息的索引eg:(notice-1或者message-1)')
+    ms_read = Column(Boolean, nullable=False, default=False, index=True, comment='是否重新接收到')
+    ms_gmt_create = Column(DateTime, nullable=False, server_default=func.now(), comment='创建时间')
+    ms_gmt_modified = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now(),
+                             comment='修改时间')
+    ms_features = Column(VARCHAR(64), nullable=False, default='', comment='特性字段')
+    __table_args__ = (
+        UniqueConstraint('username', 'ms_key', name='ms_user'),)

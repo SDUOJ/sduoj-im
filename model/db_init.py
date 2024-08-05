@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine
-from message import Message, MessageGroup
+from message import Message, MessageGroup, UserMessage
 from notice import Notice, UserNotice
 from const import SQLALCHEMY_DATABASE_URL
-
-create_table_list = [MessageGroup, Message, Notice, UserNotice
+from websocket import Websocket, Missed
+create_table_list = [MessageGroup, Message, Notice, UserNotice, Websocket, Missed, UserMessage
                      ]
 
 if __name__ == "__main__":

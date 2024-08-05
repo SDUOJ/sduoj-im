@@ -39,7 +39,6 @@ async def make_get(service, url, params) -> Union[dict, str]:
 
 async def make_post(service, url, params, data) -> Union[dict, str]:
     addr = await getService_ip_port(service)
-    # print(params, data)
     data = requests.post(
         "http://" + addr + url,
         params=params,
@@ -79,17 +78,20 @@ async def getGroupMember(groupId):
     )
     members = []
     for member in data['members']:
-        members.append({'userId': member['userId'], 'username': member['username'], 'email': member['email']})
+        members.append({'username': member['username'], 'email': member['email']})
     return members
 
 
-async def getUserInformation(userId):
+async def getUserInformation(userId, mode):
     data = await make_get(
         "user-service",
         "/internal/user/userIdToUserSessionDTO",
         {"userId": userId}
     )
-    return {'userId': data['userId'], 'username': data['username'], 'email': data['email']}
+    if mode == 1:
+        return {'username': data['username'], 'email': data['email']}
+    elif mode == 0:
+        return data
 
 
 # username 查询 userId （固定的数据信息，不会改变）
@@ -101,6 +103,6 @@ async def getUserId(username):
     )
     return data
 # async def main():
-#     print(await getGroupMember(1))
-#
+#     # print(await getGroupMember(2))
+#     print(await getUserInformation(1))
 # asyncio.run(main())
