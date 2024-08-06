@@ -57,6 +57,7 @@ class MessageModel(dbSession):
             query = session.query(
                 MessageGroup.mg_id,
                 func.coalesce(MessageAlias.m_content, None).label("m_content"),
+                func.coalesce(MessageAlias.m_id, None).label("m_id"),
                 func.coalesce(func.max(MessageAlias.m_gmt_create), None).label("latest_time")
             ).outerjoin(MessageAlias, MessageAlias.mg_id == MessageGroup.mg_id)
 
@@ -78,12 +79,13 @@ class MessageModel(dbSession):
                 )
 
             # 分组和查询
-            messages = query.group_by(MessageGroup.mg_id, MessageAlias.m_content).all()
+            messages = query.group_by(MessageGroup.mg_id, MessageAlias.m_content, MessageAlias.m_id).all()
 
             # 生成JSON响应
             messages_json = []
             for msg in messages:
                 messages_json.append({
+                    'm_id': msg.m_id,
                     'mg_id': msg.mg_id,
                     'm_last_content': msg.m_content,
                     'm_gmt_create': msg.latest_time.strftime('%Y-%m-%d %H:%M:%S') if msg.latest_time else None
@@ -167,3 +169,10 @@ class MessageUserModel(dbSession):
             session.add(object)
             session.commit()
             return True
+
+    def judge_read(self, m_id, username):
+        with self.get_db() as session:
+            res = session.query(UserMessage.mu_is_read).filter(
+                UserMessage.m_id == m_id, UserMessage.username == username).first()
+            session.commit()
+            return res

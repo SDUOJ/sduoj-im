@@ -75,8 +75,10 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
     base = base_interface.model_validate(data)
     message_list_value = message_model.get_message_list(SDUOJUserInfo['username'], base, is_TA_admin)
     for message_list in message_list_value:
+        is_read = 1 if message_user_model.judge_read(message_list['m_id'], SDUOJUserInfo['username']) is not None else 0
         members = await get_message_group_members(role_group_id, SDUOJUserInfo['username'], message_list['mg_id'])
         message_list['members'] = members
+        message_list['is_read'] = is_read
     return {'message': '查看信息成功', 'data': message_list_value, 'code': 0}
 
 
