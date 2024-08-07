@@ -26,6 +26,7 @@ async def judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, TAgroup, mode=0):
     elif e_id is not None:
         current_groups = await examIdToGroupIdList(e_id)
     current_groups = [int(num) for num in current_groups]
+    groups = [int(num) for num in groups]
     c_group = list(set(current_groups) & set(groups))  # 获取与用户组重叠的部分，判断用户是否在组里
     if mode == 1:
         if not c_group or is_admin(SDUOJUserInfo) or TAgroup in groups:  # 组里成员可以但是admin与TA不可以

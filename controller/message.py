@@ -59,7 +59,10 @@ async def message_get(mg_id: int, last_m_id: Optional[int] = None, SDUOJUserInfo
             redis_client.zadd(redis_message_key, {json.dumps(tempt): mes[1]})
             last_m_id = mes[1]
         redis_client.expire(redis_message_key, 1 * 24 * 3600)
-    message_user_model.add_message_users(SDUOJUserInfo["username"], last_m_id)
+    try:
+        message_user_model.add_message_users(SDUOJUserInfo["username"], last_m_id)
+    except Exception as e:
+        pass
     return {'message': '信息读取成功', 'data': messages_json, 'code': 0}
 
 

@@ -6,7 +6,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocketException, Depends
 from fastapi import WebSocket
 
-from auth import is_role_member, cover_header, is_admin
+from auth import is_role_member, cover_header, is_admin, judge_in_groups
 from model.redis_db import redis_client
 from sduojApi import getUserId, getUserInformation
 from service.websocket import ContestExamModel, WebsocketModel, MissedModel
@@ -73,10 +73,10 @@ class WSConnectionManager:
                     redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
 
                 elif mode == 1:
-                    ms_id = missed_model.add_missed(missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
+                    ms_id = missed_model.add_missed(
+                        missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
                     redis_client.rpush(f'cache:unreadUsers:{username}', f'notice-{project_id}-{ms_id}')
                     redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
-
 
 
 ws_manager = WSConnectionManager()
@@ -176,8 +176,7 @@ async def ws_handle(websocket: WebSocket, token: str):
                 ct_id = data['ct_id'] if 'ct_id' in data else None
                 e_id = data['e_id'] if 'e_id' in data else None
             role_group_id = contest_exam_model.get_role_group(ct_id, e_id)  # 判断用户是否在群聊组里
-            if not is_role_member(role_group_id, groups) and not is_admin(SDUOJUserInfo):  # 用户不在TA组内也不是发起答疑人
-                raise WebSocketException(code=403, reason="Permission Denial")
+            await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)
 
             if mode == 1:
                 # 处理消息发送逻辑
