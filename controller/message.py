@@ -72,11 +72,11 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
                        SDUOJUserInfo=Depends(cover_header)):
     # 处理查看提问列表逻辑
     role_group_id = contest_exam_model.get_role_group(ct_id, e_id)
-    is_TA_admin = await judge_in_groups(ct_id, e_id, SDUOJUserInfo['groups'], SDUOJUserInfo,
+    judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, SDUOJUserInfo['groups'], SDUOJUserInfo,
                                         role_group_id)  # 鉴权(组里成员和admin和TA都可以)
     data = {'e_id': e_id} if e_id is not None else {'ct_id': ct_id}
     base = base_interface.model_validate(data)
-    message_list_value = message_model.get_message_list(SDUOJUserInfo['username'], base, is_TA_admin)
+    message_list_value = message_model.get_message_list(SDUOJUserInfo['username'], base, judge_admin or judge_TA)
     for message_list in message_list_value:
         is_read = 1 if message_user_model.judge_read(message_list['m_id'], SDUOJUserInfo['username']) is not None else 0
         members = await get_message_group_members(role_group_id, SDUOJUserInfo['username'], message_list['mg_id'])

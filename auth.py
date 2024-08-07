@@ -34,7 +34,7 @@ async def judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, TAgroup, mode=0):
     elif mode == 0:  # 组里成员和admin和TA都可以
         if not c_group and not is_admin(SDUOJUserInfo) and not TAgroup in groups:
             raise HTTPException(status_code=403, detail="Permission Denial")
-        return is_admin(SDUOJUserInfo) or TAgroup in groups
+        return is_admin(SDUOJUserInfo), TAgroup in groups
 
 
 def is_manager(obj, SDUOJUserInfo):

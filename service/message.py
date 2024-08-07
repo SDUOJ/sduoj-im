@@ -62,7 +62,7 @@ class MessageModel(dbSession):
             ).outerjoin(MessageAlias, MessageAlias.mg_id == MessageGroup.mg_id)
 
             # 添加过滤条件
-            if is_TA_admin is not None:
+            if is_TA_admin == 1:
                 query = query.filter(
                     or_(
                         and_(MessageGroup.e_id == base.e_id, base.e_id is not None),

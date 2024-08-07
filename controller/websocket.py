@@ -176,10 +176,12 @@ async def ws_handle(websocket: WebSocket, token: str):
                 ct_id = data['ct_id'] if 'ct_id' in data else None
                 e_id = data['e_id'] if 'e_id' in data else None
             role_group_id = contest_exam_model.get_role_group(ct_id, e_id)  # 判断用户是否在群聊组里
-            await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)
+            judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)
 
             if mode == 1:
                 # 处理消息发送逻辑
+                if judge_TA == 0 and judge_admin == 1:  # admin但不是TA不能发消息
+                    raise WebSocketCustomException(code=403, reason="Permission Denial")
                 message_information = message_group_model.get_mg_by_id(data['mg_id'], 1)  # 找群组创建者，不存在即群不存在
                 if message_information is None:
                     raise WebSocketCustomException(code=404, reason="Not Found")
