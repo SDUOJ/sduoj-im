@@ -26,7 +26,7 @@ class MessageModel(dbSession):
             )
             if last_m_id is not None:
                 messages = messages.filter(Message.m_id > last_m_id)
-            messages = messages.order_by(Message.m_gmt_create).all()
+            messages = messages.order_by(desc(Message.m_gmt_create)).all()
             messages = messages[:messageNum]
             session.commit()
             return messages
@@ -82,7 +82,7 @@ class MessageModel(dbSession):
                         and_(MessageGroup.e_id == base.e_id, base.e_id is not None),
                         and_(MessageGroup.ct_id == base.ct_id, base.ct_id is not None)
                     ),
-                    MessageAlias.username == username
+                    MessageGroup.username == username
                 )
 
             messages = query.all()
@@ -131,6 +131,16 @@ class MessageGroupModel(dbSession):
                 if mode == 0:
                     raise HTTPException(status_code=404, detail='群聊组不存在')
             return result
+
+    def get_username_by_mg_id(self, mg_id: int):
+        with self.get_db() as session:
+            result = session.query(MessageGroup.username).filter(
+                MessageGroup.mg_id == mg_id
+            ).first()
+            session.commit()
+            if result is None:
+                raise HTTPException(status_code=404, detail='群聊组不存在')
+            return result[0]
 
     def get_ct_e_id(self, mg_id):
         with self.get_db() as session:

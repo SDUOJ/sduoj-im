@@ -55,7 +55,6 @@ class WSConnectionManager:
     async def broadcast(self, mode: int, message, u_list: list, project_id: int = None, m_username: str = None,
                         mg_id: int = None):
         # 广播通知
-        u_list = [{'username': 'sducs'}]
         for user in u_list:
             username = user['username']
             if username == m_username:
@@ -67,14 +66,20 @@ class WSConnectionManager:
                     await self.active_connections[username].send_json(message)
             else:
                 if mode == 0:
-                    ms_id = missed_model.add_missed(
-                        missed_add_interface(username=username, ms_key=f'message-{mg_id}-{project_id}'))
+                    try:
+                        ms_id = missed_model.add_missed(
+                            missed_add_interface(username=username, ms_key=f'message-{mg_id}-{project_id}'))
+                    except Exception as e:
+                        pass
                     redis_client.rpush(f'cache:unreadUsers:{username}', f'message-{mg_id}-{project_id}-{ms_id}')
                     redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
 
                 elif mode == 1:
-                    ms_id = missed_model.add_missed(
-                        missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
+                    try:
+                        ms_id = missed_model.add_missed(
+                            missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
+                    except Exception as e:
+                        pass
                     redis_client.rpush(f'cache:unreadUsers:{username}', f'notice-{project_id}-{ms_id}')
                     redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
 
@@ -86,17 +91,6 @@ class WebSocketCustomException(Exception):
     def __init__(self, code: int, reason: str):
         self.code = code
         self.reason = reason
-
-
-@ws_router.post("/auth")  # websocket建立前的权限认证与token生成
-@user_standard_response
-async def ws_auth(SDUOJUserInfo=Depends(cover_header)):
-    exist_token = websocket_model.get_token_by_username(SDUOJUserInfo['username'])
-    if exist_token is not None:
-        return {'message': '连接已存在', 'data': {'token': exist_token[0]}, 'code': 0}
-    token = str(uuid.uuid4().hex)
-    websocket_model.build_ws_connect(websocket_add_interface(username=SDUOJUserInfo['username'], w_token=token))
-    return {'message': '连接建立成功', 'data': {'token': token}, 'code': 0}
 
 
 async def resend_msg(missed_msg, mode, m_username):
@@ -136,6 +130,17 @@ async def resend_msg(missed_msg, mode, m_username):
         if mode == 0:
             redis_client.lpop(redis_user_key)
         missed_model.update_read(int(ms_id))
+
+
+@ws_router.post("/auth")  # websocket建立前的权限认证与token生成
+@user_standard_response
+async def ws_auth(SDUOJUserInfo=Depends(cover_header)):
+    exist_token = websocket_model.get_token_by_username(SDUOJUserInfo['username'])
+    if exist_token is not None:
+        return {'message': '连接已存在', 'data': {'token': exist_token[0]}, 'code': 0}
+    token = str(uuid.uuid4().hex)
+    websocket_model.build_ws_connect(websocket_add_interface(username=SDUOJUserInfo['username'], w_token=token))
+    return {'message': '连接建立成功', 'data': {'token': token}, 'code': 0}
 
 
 @ws_router.websocket("/handle/{token}")  # 建立websocket连接(注释掉的部分为判断已读未读)
@@ -198,6 +203,10 @@ async def ws_handle(websocket: WebSocket, token: str):
                 members = await get_message_group_members(role_group_id, message_information.username,
                                                           data['mg_id'])  # 获取全部成员
                 await ws_manager.broadcast(0, json.dumps(data), members, m_id, m_username, data['mg_id'])
+                try:
+                    message_user_model.add_message_users(SDUOJUserInfo["username"], m_id)
+                except Exception as e:
+                    pass
 
             elif mode == 2:
                 # 处理发布公告逻辑
@@ -236,12 +245,14 @@ async def ws_handle(websocket: WebSocket, token: str):
 
             elif mode == 4:
                 # 处理聊天组接收到新消息给后端反馈在浏览当前页面的用户，以处理消息已读状态逻辑
-                message_user_model.add_message_all_users(data['inpage_users'], data['m_id'])
+                message_user_model.add_message_users(data['username'], data['m_id'])
 
     except WebSocketCustomException as e:  # 自定义抛出异常
         error_message = json.dumps({"code": e.code, "reason": e.reason})
         await websocket.send_text(f"Error: {error_message}")
+
     except Exception as e:  # 所有异常
+        print(e)
         ws_manager.disconnect(m_username)
         # websocket_model.close_by_token(m_username)
 

@@ -79,7 +79,8 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
     message_list_value = message_model.get_message_list(SDUOJUserInfo['username'], base, judge_admin or judge_TA)
     for message_list in message_list_value:
         is_read = 1 if message_user_model.judge_read(message_list['m_id'], SDUOJUserInfo['username']) is not None else 0
-        members = await get_message_group_members(role_group_id, SDUOJUserInfo['username'], message_list['mg_id'])
+        build_username = message_group_model.get_username_by_mg_id(message_list['mg_id'])
+        members = await get_message_group_members(role_group_id, build_username, message_list['mg_id'])
         message_list['members'] = members
         message_list['is_read'] = is_read
     return {'message': '查看信息成功', 'data': message_list_value, 'code': 0}
@@ -96,7 +97,8 @@ async def message_group_add(mg_add: base_interface,
         return {'message': '群聊组已存在', 'data': {'mg_id': exist_mg_id[0]}, 'code': 0}
     mg_id = message_group_model.add_message_group(
         message_group_add_interface(ct_id=mg_add.ct_id, username=SDUOJUserInfo["username"], e_id=mg_add.e_id))
-    members = await get_message_group_members(role_group_id, SDUOJUserInfo["username"], mg_id)  # 获取全部成员
+    build_username = message_group_model.get_username_by_mg_id(mg_id)
+    members = await get_message_group_members(role_group_id, build_username, mg_id)  # 获取全部成员
     result = {'mg_id': mg_id, 'members': members}
     return {'message': '创建群聊组成功', 'data': result, 'code': 0}
 

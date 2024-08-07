@@ -39,7 +39,8 @@ async def notice_delete(nt_id: notice_delete_interface, SDUOJUserInfo=Depends(co
 async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
                          ct_id: int = Query(None), SDUOJUserInfo=Depends(cover_header)):
     groups = SDUOJUserInfo['groups']  # 查出用户所属组
-    await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo)  # 鉴权
+    role_group_id = contest_exam_model.get_role_group(ct_id, e_id)
+    await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)  # 鉴权
     Page = page(pageSize=pageSize, pageNow=pageNow)
     noticelist_get = base_interface(e_id=e_id, ct_id=ct_id)
     notices_ids, counts = notice_model.get_notice_list_id_by_p_ct(Page, noticelist_get)
@@ -94,7 +95,9 @@ async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
 async def notice_get(nt_id: int, SDUOJUserInfo=Depends(cover_header)):
     ids = notice_model.get_ct_e_id(nt_id)
     groups = SDUOJUserInfo['groups']  # 查出用户所属组
-    await judge_in_groups(ids.ct_id, ids.e_id, groups, SDUOJUserInfo)  # 鉴权
+    ct_id, e_id = notice_model.get_ct_e_id(nt_id)
+    role_group_id = contest_exam_model.get_role_group(ct_id, e_id)
+    await judge_in_groups(ids.ct_id, ids.e_id, groups, SDUOJUserInfo, role_group_id)  # 鉴权
     notice_key = f'cache:notices:{nt_id}'
     notice_read_key = f'cache:UserReadNotices:{SDUOJUserInfo["username"]}'
     redis_value = redis_client.get(notice_key)
