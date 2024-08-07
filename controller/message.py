@@ -91,7 +91,7 @@ async def message_group_add(mg_add: base_interface,
                             SDUOJUserInfo=Depends(cover_header)):
     role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id)
     await judge_in_groups(mg_add.ct_id, mg_add.e_id, SDUOJUserInfo['groups'], SDUOJUserInfo, role_group_id, 1)  # 鉴权,组里普通成员可以但是admin与TA不可以
-    exist_mg_id = message_group_model.get_mg_id(mg_add)
+    exist_mg_id = message_group_model.get_mg_id(mg_add, SDUOJUserInfo["username"])
     if exist_mg_id is not None:
         return {'message': '群聊组已存在', 'data': {'mg_id': exist_mg_id[0]}, 'code': 0}
     mg_id = message_group_model.add_message_group(

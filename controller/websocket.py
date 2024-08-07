@@ -185,8 +185,6 @@ async def ws_handle(websocket: WebSocket, token: str):
                 message_information = message_group_model.get_mg_by_id(data['mg_id'], 1)  # 找群组创建者，不存在即群不存在
                 if message_information is None:
                     raise WebSocketCustomException(code=404, reason="Not Found")
-                if not message_information.username == m_username:
-                    raise WebSocketException(code=403, reason="Permission Denial")
                 message_add = message_receive_interface(**data)
                 current_time, m_id = message_model.add_message(
                     message_add_interface(m_content=message_add.m_content, username=m_username,

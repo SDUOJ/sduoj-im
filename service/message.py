@@ -50,16 +50,23 @@ class MessageModel(dbSession):
     #         session.commit()
     #         return messages
 
-    def get_message_list(self, username: str, base: base_interface, is_TA_admin=None):
+    def get_message_list(self, username: str, base: base_interface, is_TA_admin):
         with self.get_db() as session:
-            # 处理消息和消息组的联接
+            # 子查询：获取每个用户组的最新消息的ID
+            subquery = session.query(
+                Message.mg_id,
+                func.max(Message.m_id).label("latest_id")
+            ).group_by(Message.mg_id).subquery()
+
+            # 主查询：联接消息表和子查询以获取最新消息的内容和时间
             MessageAlias = aliased(Message)  # 使用别名以避免冲突
             query = session.query(
                 MessageGroup.mg_id,
-                func.coalesce(MessageAlias.m_content, None).label("m_content"),
-                func.coalesce(MessageAlias.m_id, None).label("m_id"),
-                func.coalesce(func.max(MessageAlias.m_gmt_create), None).label("latest_time")
-            ).outerjoin(MessageAlias, MessageAlias.mg_id == MessageGroup.mg_id)
+                MessageAlias.m_content,
+                MessageAlias.m_id,
+                MessageAlias.m_gmt_create.label("latest_time")
+            ).join(subquery, MessageAlias.m_id == subquery.c.latest_id) \
+                .join(MessageGroup, MessageGroup.mg_id == MessageAlias.mg_id)
 
             # 添加过滤条件
             if is_TA_admin == 1:
@@ -78,8 +85,7 @@ class MessageModel(dbSession):
                     MessageAlias.username == username
                 )
 
-            # 分组和查询
-            messages = query.group_by(MessageGroup.mg_id, MessageAlias.m_content, MessageAlias.m_id).all()
+            messages = query.all()
 
             # 生成JSON响应
             messages_json = []
@@ -141,7 +147,7 @@ class MessageGroupModel(dbSession):
             session.commit()
             return res
 
-    def get_mg_id(self, base: base_interface):
+    def get_mg_id(self, base: base_interface, username: str):
         with self.get_db() as session:
             mg_id = session.query(
                 MessageGroup.mg_id
@@ -149,7 +155,8 @@ class MessageGroupModel(dbSession):
                 or_(
                     and_(base.e_id is not None, MessageGroup.e_id == base.e_id),
                     and_(base.ct_id is not None, MessageGroup.ct_id == base.ct_id)
-                )
+                ),
+                MessageGroup.username == username
             ).first()
             return mg_id
 
