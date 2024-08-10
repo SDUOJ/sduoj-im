@@ -25,7 +25,7 @@ class MessageModel(dbSession):
                 Message.mg_id == mg_id
             )
             if last_m_id is not None:
-                messages = messages.filter(Message.m_id > last_m_id)
+                messages = messages.filter(Message.m_id < last_m_id)
             messages = messages.order_by(desc(Message.m_gmt_create)).all()
             messages = messages[:messageNum]
             session.commit()

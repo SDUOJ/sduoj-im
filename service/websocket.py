@@ -31,10 +31,10 @@ class WebsocketModel(dbSession):
             session.commit()
             return True
 
-    def close_by_token(self, token: str):
+    def close_by_username(self, username: str):
         with self.get_db() as session:
             session.query(Websocket).filter(
-                Websocket.w_token == token
+                Websocket.username == username
             ).update({"w_is_closed": True})
             session.commit()
             return True

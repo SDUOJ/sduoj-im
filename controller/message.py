@@ -37,8 +37,7 @@ async def message_get(mg_id: int, last_m_id: Optional[int] = None, SDUOJUserInfo
     messages_json = []
     flag = 0
     if last_m_id is not None:  # 上次查看位置
-        messages = redis_client.zrangebyscore(redis_message_key, int(last_m_id) + 1, '+inf', start=0,
-                                              num=messageNum)
+        messages = redis_client.zrevrangebyscore(redis_message_key, int(last_m_id) - 1, '-inf', start=0, num=messageNum)
         messages_length = len(messages)
         if messages_length != 0:
             for msg in messages:
@@ -73,7 +72,7 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
     # 处理查看提问列表逻辑
     role_group_id = contest_exam_model.get_role_group(ct_id, e_id)
     judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, SDUOJUserInfo['groups'], SDUOJUserInfo,
-                                        role_group_id)  # 鉴权(组里成员和admin和TA都可以)
+                                                  role_group_id)  # 鉴权(组里成员和admin和TA都可以)
     data = {'e_id': e_id} if e_id is not None else {'ct_id': ct_id}
     base = base_interface.model_validate(data)
     message_list_value = message_model.get_message_list(SDUOJUserInfo['username'], base, judge_admin or judge_TA)
@@ -91,7 +90,8 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
 async def message_group_add(mg_add: base_interface,
                             SDUOJUserInfo=Depends(cover_header)):
     role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id)
-    await judge_in_groups(mg_add.ct_id, mg_add.e_id, SDUOJUserInfo['groups'], SDUOJUserInfo, role_group_id, 1)  # 鉴权,组里普通成员可以但是admin与TA不可以
+    await judge_in_groups(mg_add.ct_id, mg_add.e_id, SDUOJUserInfo['groups'], SDUOJUserInfo, role_group_id,
+                          1)  # 鉴权,组里普通成员可以但是admin与TA不可以
     exist_mg_id = message_group_model.get_mg_id(mg_add, SDUOJUserInfo["username"])
     if exist_mg_id is not None:
         return {'message': '群聊组已存在', 'data': {'mg_id': exist_mg_id[0]}, 'code': 0}

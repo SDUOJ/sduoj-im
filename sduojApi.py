@@ -104,5 +104,5 @@ async def getUserId(username):
     return data
 # async def main():
 #     # print(await getGroupMember(2))
-#     print(await getUserInformation(1))
+#     print(await getUserInformation(1,1))
 # asyncio.run(main())

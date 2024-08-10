@@ -81,7 +81,7 @@ def parse_header(SDUOJUserInfo):
     except:
         raise HTTPException(detail="Gateway Message Error", status_code=500)
 
-# original_string = '''{"userId":1,"username":"superadmin","nickname":"superadmin","email":"sduoj@sdu.edu.cn","studentId":"sducs","roles":["superadmin","admin","user"],"groups":[1,16,21],"ipv4":"127.0.0.1","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0"}'''
+# original_string = '''{"userId":8853,"username":"testTA","nickname":"1","email":"12@qq.com","studentId":"sducs1","roles":["admin,user"],"groups":[63,64],"ipv4":"127.0.0.1","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0"}'''
 # encode = parse_header(original_string)
 # print(encode)
 # print(cover_header(encode)['userId'])

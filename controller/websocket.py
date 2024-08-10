@@ -56,6 +56,8 @@ class WSConnectionManager:
                         mg_id: int = None):
         # 广播通知
         for user in u_list:
+            if 'build_username' in user:
+                continue
             username = user['username']
             if username == m_username:
                 continue
@@ -69,19 +71,20 @@ class WSConnectionManager:
                     try:
                         ms_id = missed_model.add_missed(
                             missed_add_interface(username=username, ms_key=f'message-{mg_id}-{project_id}'))
+                        redis_client.rpush(f'cache:unreadUsers:{username}', f'message-{mg_id}-{project_id}-{ms_id}')
+                        redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
                     except Exception as e:
                         pass
-                    redis_client.rpush(f'cache:unreadUsers:{username}', f'message-{mg_id}-{project_id}-{ms_id}')
-                    redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
 
                 elif mode == 1:
                     try:
                         ms_id = missed_model.add_missed(
                             missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
+                        redis_client.rpush(f'cache:unreadUsers:{username}', f'notice-{project_id}-{ms_id}')
+                        redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
                     except Exception as e:
                         pass
-                    redis_client.rpush(f'cache:unreadUsers:{username}', f'notice-{project_id}-{ms_id}')
-                    redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
+
 
 
 ws_manager = WSConnectionManager()
@@ -147,8 +150,8 @@ async def ws_auth(SDUOJUserInfo=Depends(cover_header)):
 async def ws_handle(websocket: WebSocket, token: str):
     try:
         m_username = websocket_model.get_username_by_token(token)
-        if m_username is None:
-            raise WebSocketCustomException(code=403, reason='Permission Denial')
+        # if m_username is None:
+        #     raise WebSocketCustomException(code=403, reason='Permission Denial')
         m_username = m_username.username
         # 发送者刚上线，消息重新推送逻辑
         if m_username not in ws_manager.active_connections:
@@ -162,7 +165,7 @@ async def ws_handle(websocket: WebSocket, token: str):
                 if ms_keys:
                     await resend_msg(ms_keys, 1, m_username)
         # 发送心跳
-        asyncio.create_task(send_heartbeat(websocket))
+        # asyncio.create_task(send_heartbeat(websocket))
         # 主循环
         while True:
             data = await asyncio.wait_for(websocket.receive_json(), timeout=10000)  # websocket过期时间
@@ -182,14 +185,13 @@ async def ws_handle(websocket: WebSocket, token: str):
                 e_id = data['e_id'] if 'e_id' in data else None
             role_group_id = contest_exam_model.get_role_group(ct_id, e_id)  # 判断用户是否在群聊组里
             judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)
-
             if mode == 1:
                 # 处理消息发送逻辑
-                if judge_TA == 0 and judge_admin == 1:  # admin但不是TA不能发消息
-                    raise WebSocketCustomException(code=403, reason="Permission Denial")
+                # if judge_TA == 0 and judge_admin == 1:  # admin但不是TA不能发消息
+                #     raise WebSocketCustomException(code=403, reason="Permission Denial")
                 message_information = message_group_model.get_mg_by_id(data['mg_id'], 1)  # 找群组创建者，不存在即群不存在
-                if message_information is None:
-                    raise WebSocketCustomException(code=404, reason="Not Found")
+                # if message_information is None:
+                #     raise WebSocketCustomException(code=404, reason="Not Found")
                 message_add = message_receive_interface(**data)
                 current_time, m_id = message_model.add_message(
                     message_add_interface(m_content=message_add.m_content, username=m_username,
@@ -210,38 +212,40 @@ async def ws_handle(websocket: WebSocket, token: str):
 
             elif mode == 2:
                 # 处理发布公告逻辑
-                student_list = await get_group_student(ct_id, e_id)
-                data['username'] = m_username
-                data['up_username'] = m_username
-                nt_id, nt_gmt_create = notice_model.add_notice(notice_add_interface(**data))
-                data['nt_id'] = nt_id
-                data['nt_gmt_create'] = nt_gmt_create
-                data['nt_gmt_modified'] = nt_gmt_create
-                notice_read_key = f'cache:notices:{nt_id}'
-                redis_client.set(notice_read_key, json.dumps(data), 3 * 3600)
-                data.pop('nt_content')
-                await ws_manager.broadcast(1, json.dumps(data), student_list, nt_id, m_username)
+                if judge_admin == 1 and judge_TA == 1:
+                    student_list = await get_group_student(ct_id, e_id)
+                    data['username'] = m_username
+                    data['up_username'] = m_username
+                    nt_id, nt_gmt_create = notice_model.add_notice(notice_add_interface(**data))
+                    data['nt_id'] = nt_id
+                    data['nt_gmt_create'] = nt_gmt_create
+                    data['nt_gmt_modified'] = nt_gmt_create
+                    notice_read_key = f'cache:notices:{nt_id}'
+                    redis_client.set(notice_read_key, json.dumps(data), 3 * 3600)
+                    data.pop('nt_content')
+                    await ws_manager.broadcast(1, json.dumps(data), student_list, nt_id, m_username)
 
             elif mode == 3:
                 # 处理修改公告逻辑
-                student_list = await get_group_student(ct_id, e_id)
-                data['up_username'] = m_username
-                timenow, up_username = notice_model.update_notice(notice_update_interface(**data))
-                notice_key = f'cache:notices:{data['nt_id']}'
-                redis_value = redis_client.get(notice_key)
-                if redis_value is not None:
-                    redis_notice = json.loads(redis_value)
-                    redis_notice['nt_gmt_modified'] = timenow
-                    redis_notice['nt_content'] = data['nt_content']
-                    redis_notice['nt_title'] = data['nt_title']
-                    redis_notice['up_username'] = up_username
-                    redis_client.set(notice_key, json.dumps(redis_notice), ex=3 * 3600)
-                else:
-                    redis_notice = notice_model.get_notice_by_nt_id(data['nt_id'])
-                    redis_client.set(notice_key, json.dumps(redis_notice), ex=3 * 3600)
-                redis_notice.pop('nt_content')
-                redis_notice['up_username'] = redis_notice['up_username'].split(",")[-1]
-                await ws_manager.broadcast(1, json.dumps(redis_notice), student_list, data['nt_id'], m_username)
+                if judge_admin == 1 and judge_TA == 1:
+                    student_list = await get_group_student(ct_id, e_id)
+                    data['up_username'] = m_username
+                    timenow, up_username = notice_model.update_notice(notice_update_interface(**data))
+                    notice_key = f'cache:notices:{data['nt_id']}'
+                    redis_value = redis_client.get(notice_key)
+                    if redis_value is not None:
+                        redis_notice = json.loads(redis_value)
+                        redis_notice['nt_gmt_modified'] = timenow
+                        redis_notice['nt_content'] = data['nt_content']
+                        redis_notice['nt_title'] = data['nt_title']
+                        redis_notice['up_username'] = up_username
+                        redis_client.set(notice_key, json.dumps(redis_notice), ex=3 * 3600)
+                    else:
+                        redis_notice = notice_model.get_notice_by_nt_id(data['nt_id'])
+                        redis_client.set(notice_key, json.dumps(redis_notice), ex=3 * 3600)
+                    redis_notice.pop('nt_content')
+                    redis_notice['up_username'] = redis_notice['up_username'].split(",")[-1]
+                    await ws_manager.broadcast(1, json.dumps(redis_notice), student_list, data['nt_id'], m_username)
 
             elif mode == 4:
                 # 处理聊天组接收到新消息给后端反馈在浏览当前页面的用户，以处理消息已读状态逻辑
@@ -254,7 +258,7 @@ async def ws_handle(websocket: WebSocket, token: str):
     except Exception as e:  # 所有异常
         print(e)
         ws_manager.disconnect(m_username)
-        # websocket_model.close_by_token(m_username)
+        websocket_model.close_by_username(m_username)
 
     # except asyncio.TimeoutError:  # 无动作超时
     #     ws_manager.disconnect(m_from)
