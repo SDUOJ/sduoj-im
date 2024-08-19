@@ -12,6 +12,7 @@ from service.notice import NoticeModel, UserNoticeModel
 from type.notice import base_interface, notice_delete_interface
 from type.page import page
 from utils.response import user_standard_response, makePageResult
+from type.functions import dict_pop
 
 notice_router = APIRouter()
 
@@ -53,9 +54,8 @@ async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
             current_notice_information_json = json.loads(current_notice_information)
             current_notice_information_json['up_username'] = current_notice_information_json['up_username'].split(",")[
                 -1]
-            current_notice_information_json.pop('nt_content')
-            current_notice_information_json.pop('username')
-            current_notice_information_json.pop('up_username')
+            current_notice_information_json = dict_pop(current_notice_information_json,
+                                                       ['nt_content', 'username', 'up_username'])
             if 'ct_id' in current_notice_information_json:
                 current_notice_information_json.pop('ct_id')
             elif 'e_id' in current_notice_information_json:
@@ -77,9 +77,7 @@ async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
                     n_is_read = 0
             redis_client.set(f'cache:notices:{new_notice['nt_id']}', json.dumps(new_notice), 3 * 3600)
             new_notice['n_is_read'] = n_is_read
-            new_notice.pop('nt_content')
-            new_notice.pop('username')
-            new_notice.pop('up_username')
+            new_notice = dict_pop(new_notice, ['nt_content', 'username', 'up_username'])
             if 'ct_id' in new_notice:
                 new_notice.pop('ct_id')
             elif 'e_id' in new_notice:
@@ -124,7 +122,6 @@ async def notice_get(nt_id: int, SDUOJUserInfo=Depends(cover_header)):
                'email': email['email']}
     if not redis_client.sismember(notice_read_key, nt_id):
         if not user_notice_model.judge_exist_by_u_n(SDUOJUserInfo["username"], nt_id):
-            redis_client.sadd(notice_read_key, nt_id)
-            redis_client.expire(notice_read_key, 24 * 3600)
+            redis_client.sadd(notice_read_key, 24 * 3600, nt_id)
             user_notice_model.add_user_notice(nt_id, SDUOJUserInfo["username"])
     return {'message': '公告内容如下:', 'data': ans, 'code': 0}

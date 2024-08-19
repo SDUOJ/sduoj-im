@@ -67,9 +67,10 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return False
 
-    def rpush(self, key, *values):
+    def rpush(self, key, time, *values):
         with self.get_connection() as conn:
             try:
+                self.expire(key, time)
                 return conn.rpush(key, *values)
             except redis.exceptions.RedisError as e:
                 return False
@@ -78,14 +79,6 @@ class RedisClient:
         with self.get_connection() as conn:
             try:
                 return conn.lrange(key, start, end)
-            except redis.exceptions.RedisError as e:
-                print(e)
-                return False
-
-    def ltimeset(self, key, time):
-        with self.get_connection() as conn:
-            try:
-                return conn.expire(key, time)
             except redis.exceptions.RedisError as e:
                 return False
 
@@ -138,9 +131,10 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return None
 
-    def zadd(self, key, *args, **kwargs):
+    def zadd(self, key, time, *args, **kwargs):
         with self.get_connection() as conn:
             try:
+                self.expire(key, time)
                 return conn.zadd(key, *args, **kwargs)
             except redis.exceptions.RedisError as e:
                 return False
@@ -187,9 +181,10 @@ class RedisClient:
             except redis.exceptions.RedisError as e:
                 return False
 
-    def sadd(self, key, *keys):
+    def sadd(self, key, time, *keys):
         with self.get_connection() as conn:
             try:
+                self.expire(key, time)
                 return conn.sadd(key, *keys)
             except redis.exceptions.RedisError as e:
                 return False

@@ -12,7 +12,7 @@ from sduojApi import getUserId, getUserInformation
 from service.websocket import ContestExamModel, WebsocketModel, MissedModel
 from service.message import MessageModel, MessageGroupModel, MessageUserModel
 from service.notice import NoticeModel
-from type.functions import send_heartbeat, get_group_student, get_message_group_members
+from type.functions import send_heartbeat, get_group_student, get_message_group_members, dict_pop
 from type.message import message_add_interface, message_receive_interface
 from type.notice import notice_add_interface, notice_update_interface
 from utils.response import user_standard_response
@@ -53,7 +53,7 @@ class WSConnectionManager:
             await ws.send_text(message)
 
     async def broadcast(self, mode: int, message, u_list: list, project_id: int = None, m_username: str = None,
-                        mg_id: int = None):
+                        mg_id: int = None, group_build: int = 0):
         # 广播通知
         for user in u_list:
             if 'build_username' in user:
@@ -67,24 +67,23 @@ class WSConnectionManager:
                 else:
                     await self.active_connections[username].send_json(message)
             else:
-                if mode == 0:
-                    try:
-                        ms_id = missed_model.add_missed(
-                            missed_add_interface(username=username, ms_key=f'message-{mg_id}-{project_id}'))
-                        redis_client.rpush(f'cache:unreadUsers:{username}', f'message-{mg_id}-{project_id}-{ms_id}')
-                        redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
-                    except Exception as e:
-                        pass
+                if group_build == 0:
+                    if mode == 0:
+                        try:
+                            ms_id = missed_model.add_missed(
+                                missed_add_interface(username=username, ms_key=f'message-{mg_id}-{project_id}'))
+                            redis_client.rpush(f'cache:unreadUsers:{username}', 3 * 3600,
+                                               f'message-{mg_id}-{project_id}-{ms_id}')
+                        except Exception as e:
+                            pass
 
-                elif mode == 1:
-                    try:
-                        ms_id = missed_model.add_missed(
-                            missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
-                        redis_client.rpush(f'cache:unreadUsers:{username}', f'notice-{project_id}-{ms_id}')
-                        redis_client.ltimeset(f'cache:unreadUsers:{username}', 3 * 3600)
-                    except Exception as e:
-                        pass
-
+                    elif mode == 1:
+                        try:
+                            ms_id = missed_model.add_missed(
+                                missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
+                            redis_client.rpush(f'cache:unreadUsers:{username}', 3 * 3600, f'notice-{project_id}-{ms_id}')
+                        except Exception as e:
+                            pass
 
 
 ws_manager = WSConnectionManager()
@@ -187,11 +186,11 @@ async def ws_handle(websocket: WebSocket, token: str):
             judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)
             if mode == 1:
                 # 处理消息发送逻辑
-                # if judge_TA == 0 and judge_admin == 1:  # admin但不是TA不能发消息
-                #     raise WebSocketCustomException(code=403, reason="Permission Denial")
+                if judge_TA == 0 and judge_admin == 1:  # admin但不是TA不能发消息
+                    raise WebSocketCustomException(code=403, reason="Permission Denial")
                 message_information = message_group_model.get_mg_by_id(data['mg_id'], 1)  # 找群组创建者，不存在即群不存在
-                # if message_information is None:
-                #     raise WebSocketCustomException(code=404, reason="Not Found")
+                if message_information is None:
+                    raise WebSocketCustomException(code=404, reason="Not Found")
                 message_add = message_receive_interface(**data)
                 current_time, m_id = message_model.add_message(
                     message_add_interface(m_content=message_add.m_content, username=m_username,
@@ -200,8 +199,7 @@ async def ws_handle(websocket: WebSocket, token: str):
                 data['username'] = m_username
                 data['m_id'] = m_id
                 redis_message_key = f"cache:messageGroup:{data['mg_id']}"
-                redis_client.zadd(redis_message_key, {json.dumps(data): m_id})
-                redis_client.ltimeset(redis_message_key, 3 * 3600)
+                redis_client.zadd(redis_message_key, 3 * 3600, {json.dumps(data): m_id})
                 members = await get_message_group_members(role_group_id, message_information.username,
                                                           data['mg_id'])  # 获取全部成员
                 await ws_manager.broadcast(0, json.dumps(data), members, m_id, m_username, data['mg_id'])

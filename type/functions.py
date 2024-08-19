@@ -45,6 +45,12 @@ async def get_message_group_members(role_group_id, username, mg_id):
         redis_client.set(f"cache:messageGroupMember:{mg_id}", json.dumps(members), ex=9000)
     return members
 
+
+def dict_pop(old_dict, pop_list):
+    for key in pop_list:
+        old_dict.pop(key)
+    return old_dict
+
 # def get_redis_message_key(m_from, data):  # 私聊情况
 #     if m_from > data['m_to']:  # 固定格式为:p/ct_id - 小id - 大id
 #         m_small = data['m_to']

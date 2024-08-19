@@ -9,10 +9,11 @@ from model.redis_db import redis_client
 from sduojApi import getUserId, getGroupMember
 from service.websocket import ContestExamModel
 from service.message import MessageModel, MessageGroupModel, MessageUserModel
-from type.functions import get_message_group_members
-from type.message import message_group_add_interface
+from type.functions import get_message_group_members, dict_pop
+from type.message import message_group_add_interface, message_add_interface
 from type.notice import base_interface
 from utils.response import user_standard_response
+from controller.websocket import ws_manager
 
 message_router = APIRouter()
 message_model = MessageModel()
@@ -55,9 +56,8 @@ async def message_get(mg_id: int, last_m_id: Optional[int] = None, SDUOJUserInfo
             tempt_dcopy = copy.deepcopy(tempt)
             messages_json.append(tempt_dcopy)
             tempt['mg_id'] = mg_id
-            redis_client.zadd(redis_message_key, {json.dumps(tempt): mes[1]})
+            redis_client.zadd(redis_message_key, 1 * 24 * 3600, {json.dumps(tempt): mes[1]})
             last_m_id = mes[1]
-        redis_client.expire(redis_message_key, 1 * 24 * 3600)
     try:
         message_user_model.add_message_users(SDUOJUserInfo["username"], last_m_id)
     except Exception as e:
@@ -99,8 +99,14 @@ async def message_group_add(mg_add: base_interface,
         message_group_add_interface(ct_id=mg_add.ct_id, username=SDUOJUserInfo["username"], e_id=mg_add.e_id))
     build_username = message_group_model.get_username_by_mg_id(mg_id)
     members = await get_message_group_members(role_group_id, build_username, mg_id)  # 获取全部成员
-    result = {'mg_id': mg_id, 'members': members}
-    return {'message': '创建群聊组成功', 'data': result, 'code': 0}
+    current_time, m_id = message_model.add_message(
+        message_add_interface(m_content='群聊已建立!', username=SDUOJUserInfo["username"],
+                              mg_id=mg_id))
+    http_result = {'mg_id': mg_id, 'members': members}
+    ws_result = {'mg_id': mg_id, 'members': members, 'm_id': m_id, 'm_gmt_create': current_time,
+                 'm_last_content': '群聊已建立!', 'is_read': 0}
+    ws_manager.broadcast(0, ws_result, members, -1, SDUOJUserInfo["username"], mg_id, 1)
+    return {'message': '创建群聊组成功', 'data': http_result, 'code': 0}
 
 # @message_router.get("/getMessage")  # 查看与某人的消息(私聊)
 # @user_standard_response
