@@ -29,4 +29,4 @@ python -m gunicorn -c gunicorn.conf.py main:app
 ```
 
 ## Acknowledgment
-We acknowledge the utilization of ERICommiter, developed by Pengyu Xue, Linhao Wu et al., for commit message generation by the SDUOJ team from July 1 to September 1, 2024. We express our gratitude for this contribution.
+We acknowledge the utilization of [ERICommiter](https://arxiv.org/abs/2404.14824), developed by Pengyu Xue, Linhao Wu et al., for commit message generation by the SDUOJ team from July 1 to September 1, 2024. We express our gratitude for this contribution.
