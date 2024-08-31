@@ -68,22 +68,20 @@ class WSConnectionManager:
                     await self.active_connections[username].send_json(message)
             else:
                 if group_build == 0:
-                    if mode == 0:
-                        try:
+                    try:
+                        if mode == 0:
                             ms_id = missed_model.add_missed(
                                 missed_add_interface(username=username, ms_key=f'message-{mg_id}-{project_id}'))
                             redis_client.rpush(f'cache:unreadUsers:{username}', 3 * 3600,
                                                f'message-{mg_id}-{project_id}-{ms_id}')
-                        except Exception as e:
-                            pass
 
-                    elif mode == 1:
-                        try:
+                        elif mode == 1:
                             ms_id = missed_model.add_missed(
                                 missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
                             redis_client.rpush(f'cache:unreadUsers:{username}', 3 * 3600, f'notice-{project_id}-{ms_id}')
-                        except Exception as e:
-                            pass
+
+                    except Exception as e:
+                        pass
 
 
 ws_manager = WSConnectionManager()
@@ -105,7 +103,8 @@ async def resend_msg(missed_msg, mode, m_username):
             ms_key_split = missed.split('-')
         if ms_key_split[0].startswith('n'):  # notice重新发送
             missed_notice_id = ms_key_split[1]
-            ms_id = ms_key_split[2]
+            if mode == 0:
+                ms_id = ms_key_split[2]
             notice_information = redis_client.get(f'cache:notices:{missed_notice_id}')
             if notice_information is None:  # 从数据库读
                 redis_notice = notice_model.get_notice_by_nt_id(missed_notice_id)
@@ -121,7 +120,8 @@ async def resend_msg(missed_msg, mode, m_username):
         else:  # 处理message重发逻辑
             unsend_message = redis_client.zrangebyscore(f'cache:messageGroup:{ms_key_split[1]}', int(ms_key_split[2]),
                                                         int(ms_key_split[2]), 0, 1)
-            ms_id = ms_key_split[3]
+            if mode == 0:
+                ms_id = ms_key_split[3]
             if unsend_message:
                 send_thing = json.loads(unsend_message[0])
             else:
@@ -174,16 +174,17 @@ async def ws_handle(websocket: WebSocket, token: str):
             data.pop('mode')
             groups = SDUOJUserInfo['groups']  # 查出用户所属组
             if 'nt_id' in data:
-                ct_id, e_id = notice_model.get_ct_e_id(data['nt_id'])
+                ct_id, e_id, psid = notice_model.get_ct_e_id(data['nt_id'])
             elif 'mg_id' in data:
-                ct_id, e_id = message_group_model.get_ct_e_id(data['mg_id'])
+                ct_id, e_id, psid = message_group_model.get_ct_e_id(data['mg_id'])
             elif 'm_id' in data:
-                ct_id, e_id = message_group_model.get_ct_e_id_by_m(data['m_id'])
+                ct_id, e_id, psid = message_group_model.get_ct_e_id_by_m(data['m_id'])
             else:
                 ct_id = data['ct_id'] if 'ct_id' in data else None
                 e_id = data['e_id'] if 'e_id' in data else None
-            role_group_id = contest_exam_model.get_role_group(ct_id, e_id)  # 判断用户是否在群聊组里
-            judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)
+                psid = data['psid'] if 'psid' in data else None
+            role_group_id = contest_exam_model.get_role_group(ct_id, e_id, psid)  # 判断用户是否在群聊组里
+            judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, psid, groups, SDUOJUserInfo, role_group_id, 0)
             if mode == 1:
                 # 处理消息发送逻辑
                 if judge_TA == 0 and judge_admin == 1:  # admin但不是TA不能发消息
@@ -210,8 +211,8 @@ async def ws_handle(websocket: WebSocket, token: str):
 
             elif mode == 2:
                 # 处理发布公告逻辑
-                if judge_admin == 1 and judge_TA == 1:
-                    student_list = await get_group_student(ct_id, e_id)
+                if judge_admin == 1 or judge_TA == 1:
+                    student_list = await get_group_student(ct_id, e_id, psid)
                     data['username'] = m_username
                     data['up_username'] = m_username
                     nt_id, nt_gmt_create = notice_model.add_notice(notice_add_interface(**data))
@@ -225,8 +226,8 @@ async def ws_handle(websocket: WebSocket, token: str):
 
             elif mode == 3:
                 # 处理修改公告逻辑
-                if judge_admin == 1 and judge_TA == 1:
-                    student_list = await get_group_student(ct_id, e_id)
+                if judge_admin == 1 or judge_TA == 1:
+                    student_list = await get_group_student(ct_id, e_id, psid)
                     data['up_username'] = m_username
                     timenow, up_username = notice_model.update_notice(notice_update_interface(**data))
                     notice_key = f'cache:notices:{data['nt_id']}'

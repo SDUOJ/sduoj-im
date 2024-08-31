@@ -1,11 +1,12 @@
-from typing import Union
+from typing import Union, Optional
 
 from pydantic import BaseModel, ConfigDict
 
 
 class base_interface(BaseModel):
-    e_id: Union[int, None] = None
-    ct_id: Union[int, None] = None
+    e_id: Optional[int] = None
+    ct_id: Optional[int] = None
+    psid: Optional[int] = None
 
 
 class notice_information_interface(BaseModel):

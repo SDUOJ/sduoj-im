@@ -29,7 +29,7 @@ async def message_get(mg_id: int, last_m_id: Optional[int] = None, SDUOJUserInfo
     # 处理查看消息逻辑
     message_information = message_group_model.get_mg_by_id(mg_id, 0)  # 找群组创建者，不存在即群不存在
     role_group_id = contest_exam_model.get_role_group(message_information.ct_id,
-                                                      message_information.e_id)  # 判断用户是否在群聊组里
+                                                      message_information.e_id, message_information.psid)  # 判断用户是否在群聊组里
     if not message_information.username == SDUOJUserInfo["username"] and not is_admin(
             SDUOJUserInfo) and not is_role_member(role_group_id, SDUOJUserInfo["groups"]):  # 用户不在TA组内也不是发起答疑人也不是管理
         raise HTTPException(detail="Permission Denial", status_code=403)
@@ -50,6 +50,7 @@ async def message_get(mg_id: int, last_m_id: Optional[int] = None, SDUOJUserInfo
             last_m_id = json.loads(messages[-1])['m_id']
     if not flag:
         messages = message_model.get_message(mg_id, messageNum - len(messages), last_m_id)
+        last_m_id = 0 if last_m_id is None else last_m_id
         for mes in messages:
             tempt = {"m_gmt_create": mes[3].strftime('%Y-%m-%d %H:%M:%S'), "username": mes[0],
                      "m_id": mes[1], "m_content": mes[2]}
@@ -57,24 +58,24 @@ async def message_get(mg_id: int, last_m_id: Optional[int] = None, SDUOJUserInfo
             messages_json.append(tempt_dcopy)
             tempt['mg_id'] = mg_id
             redis_client.zadd(redis_message_key, 1 * 24 * 3600, {json.dumps(tempt): mes[1]})
-            last_m_id = mes[1]
+            if mes[1] > last_m_id:
+                last_m_id = mes[1]
     try:
         message_user_model.add_message_users(SDUOJUserInfo["username"], last_m_id)
     except Exception as e:
-        pass
+        print(e)
     return {'message': '信息读取成功', 'data': messages_json, 'code': 0}
 
 
 @message_router.get("/viewMessage")  # 查看自己的群聊（学生看自己的，TA和admin看所有的）
 @user_standard_response
-async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
+async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None, psid: Optional[int] = None,
                        SDUOJUserInfo=Depends(cover_header)):
     # 处理查看提问列表逻辑
-    role_group_id = contest_exam_model.get_role_group(ct_id, e_id)
-    judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, SDUOJUserInfo['groups'], SDUOJUserInfo,
+    role_group_id = contest_exam_model.get_role_group(ct_id, e_id, psid)
+    judge_admin, judge_TA = await judge_in_groups(ct_id, e_id, psid, SDUOJUserInfo['groups'], SDUOJUserInfo,
                                                   role_group_id)  # 鉴权(组里成员和admin和TA都可以)
-    data = {'e_id': e_id} if e_id is not None else {'ct_id': ct_id}
-    base = base_interface.model_validate(data)
+    base = base_interface(e_id=e_id, ct_id=ct_id, psid=psid)
     message_list_value = message_model.get_message_list(SDUOJUserInfo['username'], base, judge_admin or judge_TA)
     for message_list in message_list_value:
         is_read = 1 if message_user_model.judge_read(message_list['m_id'], SDUOJUserInfo['username']) is not None else 0
@@ -89,14 +90,15 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None,
 @user_standard_response
 async def message_group_add(mg_add: base_interface,
                             SDUOJUserInfo=Depends(cover_header)):
-    role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id)
-    await judge_in_groups(mg_add.ct_id, mg_add.e_id, SDUOJUserInfo['groups'], SDUOJUserInfo, role_group_id,
+    role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id, mg_add.psid)
+    await judge_in_groups(mg_add.ct_id, mg_add.e_id, mg_add.psid, SDUOJUserInfo['groups'], SDUOJUserInfo, role_group_id,
                           1)  # 鉴权,组里普通成员可以但是admin与TA不可以
     exist_mg_id = message_group_model.get_mg_id(mg_add, SDUOJUserInfo["username"])
     if exist_mg_id is not None:
         return {'message': '群聊组已存在', 'data': {'mg_id': exist_mg_id[0]}, 'code': 0}
     mg_id = message_group_model.add_message_group(
-        message_group_add_interface(ct_id=mg_add.ct_id, username=SDUOJUserInfo["username"], e_id=mg_add.e_id))
+        message_group_add_interface(ct_id=mg_add.ct_id, username=SDUOJUserInfo["username"], e_id=mg_add.e_id,
+                                    psid=mg_add.psid))
     build_username = message_group_model.get_username_by_mg_id(mg_id)
     members = await get_message_group_members(role_group_id, build_username, mg_id)  # 获取全部成员
     current_time, m_id = message_model.add_message(
@@ -105,7 +107,7 @@ async def message_group_add(mg_add: base_interface,
     http_result = {'mg_id': mg_id, 'members': members}
     ws_result = {'mg_id': mg_id, 'members': members, 'm_id': m_id, 'm_gmt_create': current_time,
                  'm_last_content': '群聊已建立!', 'is_read': 0}
-    ws_manager.broadcast(0, ws_result, members, -1, SDUOJUserInfo["username"], mg_id, 1)
+    await ws_manager.broadcast(0, ws_result, members, -1, SDUOJUserInfo["username"], mg_id, 1)
     return {'message': '创建群聊组成功', 'data': http_result, 'code': 0}
 
 # @message_router.get("/getMessage")  # 查看与某人的消息(私聊)

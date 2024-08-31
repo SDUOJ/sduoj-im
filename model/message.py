@@ -35,6 +35,7 @@ class MessageGroup(Base):
     mg_is_deleted = Column(Boolean, nullable=False, default=False, comment='是否删除, 0.否, 1.是')
     ct_id = Column(BigInteger, nullable=True, unique=False, index=True, comment="用户组考试ID")
     e_id = Column(BigInteger, nullable=True, unique=False, index=True, comment="用户组比赛ID")
+    psid = Column(BigInteger, nullable=True, unique=False, index=True, comment="用户组题单ID")
     username = Column(VARCHAR(63), nullable=False, comment='用户名')
     __table_args__ = (
         UniqueConstraint('ct_id', 'username', name='ct_u_uc'), UniqueConstraint('e_id', 'username', name='e_u_uc'))

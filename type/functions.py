@@ -11,6 +11,9 @@ from model.redis_db import redis_client
 import time
 
 from sduojApi import contestIdToGroupIdList, examIdToGroupIdList, getGroupMember, getUserInformation, getUserId
+from service.websocket import ContestExamModel
+
+contest_exam_model = ContestExamModel()
 
 
 async def send_heartbeat(websocket: WebSocket):
@@ -24,12 +27,18 @@ async def send_heartbeat(websocket: WebSocket):
         pass
 
 
-async def get_group_student(ct_id, e_id):
+async def get_group_student(ct_id, e_id, psid):
     if ct_id is not None:
         current_group = await contestIdToGroupIdList(ct_id)
     elif e_id is not None:
         current_group = await examIdToGroupIdList(e_id)
+    elif psid is not None:
+        current_group = contest_exam_model.get_role_group(psid=psid)
     return await getGroupMember(int(current_group[0]))
+
+
+async def get_ps_group(psid):
+    return contest_exam_model.get_ps_groups(psid)
 
 
 async def get_message_group_members(role_group_id, username, mg_id):

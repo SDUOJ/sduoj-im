@@ -2,13 +2,13 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func, join, update, desc, or_, and_, case, not_
 from model.db import dbSession
-from model.group import Contest, Exam
+from model.group import Contest, Exam, ProblemSet
 from model.websocket import Websocket, Missed
 from type.websocket import websocket_add_interface, missed_add_interface
 
 
 class ContestExamModel(dbSession):
-    def get_role_group(self, ct_id, e_id):
+    def get_role_group(self, ct_id: int = None, e_id: int = None, psid: int = None):
         with self.get_db() as session:
             if ct_id is not None:
                 role_group_id = session.query(Contest.g_id).filter(
@@ -18,8 +18,23 @@ class ContestExamModel(dbSession):
                 role_group_id = session.query(Exam.g_id).filter(
                     Exam.e_id == e_id
                 ).first()
+            elif psid is not None:
+                role_group_id = session.query(ProblemSet.manageGroupId).filter(
+                    ProblemSet.psid == psid
+                ).first()
+
             session.commit()
+            if psid is not None:
+                return role_group_id
             return role_group_id[0]
+
+    def get_ps_groups(self, psid):
+        with self.get_db() as session:
+            group_ids = session.query(ProblemSet.groupId).filter(
+                ProblemSet.psid == psid
+            ).all()
+            session.commit()
+            return group_ids
 
 
 class WebsocketModel(dbSession):

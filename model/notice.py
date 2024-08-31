@@ -17,6 +17,7 @@ class Notice(Base):  # 通知表
     up_username = Column(VARCHAR(512), nullable=False, comment="更新通知的用户名集合,以','分割")
     e_id = Column(BigInteger, nullable=True, unique=False, index=True, comment="问题ID")
     ct_id = Column(BigInteger, nullable=True, unique=False, index=True, comment="比赛ID")
+    psid = Column(BigInteger, nullable=True, unique=False, index=True, comment="题单ID")
     nt_title = Column(VARCHAR(100), nullable=False, unique=False, index=False, comment="通知标题")
     nt_content = Column(VARCHAR(200), nullable=False, unique=False, index=False, comment="通知内容")
 

@@ -73,14 +73,16 @@ class MessageModel(dbSession):
                 query = query.filter(
                     or_(
                         and_(MessageGroup.e_id == base.e_id, base.e_id is not None),
-                        and_(MessageGroup.ct_id == base.ct_id, base.ct_id is not None)
+                        and_(MessageGroup.ct_id == base.ct_id, base.ct_id is not None),
+                        and_(MessageGroup.psid == base.psid, base.psid is not None)
                     )
                 )
             else:
                 query = query.filter(
                     or_(
                         and_(MessageGroup.e_id == base.e_id, base.e_id is not None),
-                        and_(MessageGroup.ct_id == base.ct_id, base.ct_id is not None)
+                        and_(MessageGroup.ct_id == base.ct_id, base.ct_id is not None),
+                        and_(MessageGroup.psid == base.psid, base.psid is not None)
                     ),
                     MessageGroup.username == username
                 )
@@ -123,7 +125,7 @@ class MessageGroupModel(dbSession):
 
     def get_mg_by_id(self, mg_id: int, mode: int):
         with self.get_db() as session:
-            result = session.query(MessageGroup.username, MessageGroup.ct_id, MessageGroup.e_id).filter(
+            result = session.query(MessageGroup.username, MessageGroup.ct_id, MessageGroup.e_id, MessageGroup.psid).filter(
                 MessageGroup.mg_id == mg_id
             ).first()
             session.commit()
@@ -144,14 +146,14 @@ class MessageGroupModel(dbSession):
 
     def get_ct_e_id(self, mg_id):
         with self.get_db() as session:
-            res = session.query(MessageGroup.ct_id, MessageGroup.e_id).filter(
+            res = session.query(MessageGroup.ct_id, MessageGroup.e_id, MessageGroup.psid).filter(
                 MessageGroup.mg_id == mg_id).first()
             session.commit()
             return res
 
     def get_ct_e_id_by_m(self, m_id):
         with self.get_db() as session:
-            res = session.query(MessageGroup.ct_id, MessageGroup.e_id).outerjoin(Message,
+            res = session.query(MessageGroup.ct_id, MessageGroup.e_id, MessageGroup.psid).outerjoin(Message,
                                                                                  MessageGroup.mg_id == Message.mg_id).filter(
                 Message.m_id == m_id).first()
             session.commit()
@@ -164,7 +166,8 @@ class MessageGroupModel(dbSession):
             ).filter(
                 or_(
                     and_(base.e_id is not None, MessageGroup.e_id == base.e_id),
-                    and_(base.ct_id is not None, MessageGroup.ct_id == base.ct_id)
+                    and_(base.ct_id is not None, MessageGroup.ct_id == base.ct_id),
+                    and_(base.psid is not None, MessageGroup.psid == base.psid)
                 ),
                 MessageGroup.username == username
             ).first()

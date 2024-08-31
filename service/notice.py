@@ -50,6 +50,9 @@ class NoticeModel(dbSession):
             elif noticelist_get.ct_id is not None:
                 ses = session.query(Notice.nt_id).filter(
                     Notice.ct_id == noticelist_get.ct_id, Notice.nt_is_deleted == 0)
+            elif noticelist_get.psid is not None:
+                ses = session.query(Notice.nt_id).filter(
+                    Notice.psid == noticelist_get.psid, Notice.nt_is_deleted == 0)
             counts = ses.count()
             ses = ses.order_by(
                 desc(Notice.nt_gmt_modified)).all()
@@ -60,7 +63,7 @@ class NoticeModel(dbSession):
 
     def get_ct_e_id(self, nt_id):
         with self.get_db() as session:
-            res = session.query(Notice.ct_id, Notice.e_id).filter(
+            res = session.query(Notice.ct_id, Notice.e_id, Notice.psid).filter(
                 Notice.nt_id == nt_id, Notice.nt_is_deleted == 0).first()
             session.commit()
             if res is None:
@@ -73,7 +76,7 @@ class NoticeModel(dbSession):
             ses = session.query(Notice.nt_id, Notice.nt_gmt_create, Notice.nt_gmt_modified, Notice.username,
                                 Notice.up_username,
                                 Notice.nt_content,
-                                Notice.nt_title, Notice.e_id, Notice.ct_id).filter(
+                                Notice.nt_title, Notice.e_id, Notice.ct_id, Notice.psid).filter(
                 Notice.nt_is_deleted == 0,
                 Notice.nt_id.in_(ids)  # 过滤条件：nt_id 在给定的 ids 列表中
             ).all()
@@ -93,8 +96,11 @@ class NoticeModel(dbSession):
                 if record.e_id is not None:  # 如果 e_id 不为空，则添加到结果字典
                     temp_dict['e_id'] = record.e_id
 
-                if record.ct_id is not None:  # 如果 cte_id 不为空，则添加到结果字典
+                if record.ct_id is not None:  # 如果 ct_id 不为空，则添加到结果字典
                     temp_dict['ct_id'] = record.ct_id
+
+                if record.psid is not None:  # 如果 ps_id 不为空，则添加到结果字典
+                    temp_dict['psid'] = record.psid
                 notice_json.append(temp_dict)
 
             session.commit()
@@ -135,7 +141,7 @@ class NoticeModel(dbSession):
 
             ses = session.query(Notice.nt_gmt_create, Notice.nt_gmt_modified, Notice.username, Notice.up_username,
                                 Notice.nt_title,
-                                Notice.nt_content, Notice.e_id, Notice.ct_id).filter(
+                                Notice.nt_content, Notice.e_id, Notice.ct_id, Notice.psid).filter(
                 Notice.nt_id == nt_id, Notice.nt_is_deleted == 0).first()
             res = None
             if ses is not None:
@@ -151,8 +157,11 @@ class NoticeModel(dbSession):
                 if ses.e_id is not None:  # 如果 e_id 不为空，则添加到结果字典
                     res['e_id'] = ses.e_id
 
-                if ses.ct_id is not None:  # 如果 cte_id 不为空，则添加到结果字典
+                if ses.ct_id is not None:  # 如果 ct_id 不为空，则添加到结果字典
                     res['ct_id'] = ses.ct_id
+
+                if ses.psid is not None:  # 如果 psid 不为空，则添加到结果字典
+                    res['psid'] = ses.psid
             session.commit()
             return res
 

@@ -12,7 +12,6 @@ from sqlalchemy.orm import relationship
 from model.db import Base
 
 
-
 class Contest(Base):
     __tablename__ = 'oj_contest'
 
@@ -72,3 +71,27 @@ class Exam(Base):
         'mysql_collate': 'utf8mb4_0900_ai_ci',
         'comment': '考试表'
     }
+
+
+class ProblemSet(Base):
+    __tablename__ = 'problem_set'
+
+    # 表字段定义
+    psid = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    name = Column(String(63), nullable=False, comment='名称')
+    description = Column(Text, nullable=True, comment='描述')
+    type = Column(Integer, nullable=False, comment='类型')
+    groupInfo = Column(Text, nullable=False, comment='群组信息')
+    config = Column(Text, nullable=False, comment='配置')
+    global_score = Column(Float, nullable=True, default=None, comment='全局分数')
+    tm_start = Column(DateTime, nullable=True, default=None, comment='开始时间')
+    tm_end = Column(DateTime, nullable=True, default=None, comment='结束时间')
+    username = Column(String(63), nullable=False, comment='用户名')
+    manageGroupId = Column(Integer, nullable=True, default=None, comment='管理组ID')
+    groupId = Column(Integer, nullable=False, comment='组ID')
+    tag = Column(String(63), nullable=False, comment='标签')
+
+    # 索引定义
+    __table_args__ = (
+        Index('ix_problem_set_groupId_tag_type', 'groupId', 'tag', 'type'),
+    )

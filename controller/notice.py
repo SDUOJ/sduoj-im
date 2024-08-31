@@ -27,7 +27,7 @@ contest_exam_model = ContestExamModel()
 async def notice_delete(nt_id: notice_delete_interface, SDUOJUserInfo=Depends(cover_header)):
     groups = SDUOJUserInfo["groups"]  # 查出用户所属组
     ids = notice_model.get_ct_e_id(nt_id.nt_id)
-    role_group_id = contest_exam_model.get_role_group(ids.ct_id, ids.e_id)  # 判断用户是否在TA组里
+    role_group_id = contest_exam_model.get_role_group(ids.ct_id, ids.e_id, ids.psid)  # 判断用户是否在TA组里
     if not is_role_member(role_group_id, groups) and not is_admin(SDUOJUserInfo):  # 用户不在TA组内,无权限删除公告
         raise HTTPException(detail="Permission Denial", status_code=403)
     notice_model.delete_notice(nt_id.nt_id)
@@ -38,12 +38,12 @@ async def notice_delete(nt_id: notice_delete_interface, SDUOJUserInfo=Depends(co
 @notice_router.get("/getNoticeList")  # 查看已推送的公告列表
 @user_standard_response
 async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
-                         ct_id: int = Query(None), SDUOJUserInfo=Depends(cover_header)):
+                         ct_id: int = Query(None), psid: int = Query(None),SDUOJUserInfo=Depends(cover_header)):
     groups = SDUOJUserInfo['groups']  # 查出用户所属组
-    role_group_id = contest_exam_model.get_role_group(ct_id, e_id)
-    await judge_in_groups(ct_id, e_id, groups, SDUOJUserInfo, role_group_id, 0)  # 鉴权
+    role_group_id = contest_exam_model.get_role_group(ct_id, e_id, psid)
+    await judge_in_groups(ct_id, e_id, psid, groups, SDUOJUserInfo, role_group_id, 0)  # 鉴权
     Page = page(pageSize=pageSize, pageNow=pageNow)
-    noticelist_get = base_interface(e_id=e_id, ct_id=ct_id)
+    noticelist_get = base_interface(e_id=e_id, ct_id=ct_id, psid=psid)
     notices_ids, counts = notice_model.get_notice_list_id_by_p_ct(Page, noticelist_get)
     notices = []
     none_notice_ids = []
@@ -60,6 +60,8 @@ async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
                 current_notice_information_json.pop('ct_id')
             elif 'e_id' in current_notice_information_json:
                 current_notice_information_json.pop('e_id')
+            elif 'psid' in current_notice_information_json:
+                current_notice_information_json.pop('psid')
             n_is_read = 1
             if not redis_client.sismember(notice_read_key, nt_id):
                 if not user_notice_model.judge_exist_by_u_n(SDUOJUserInfo["username"], nt_id):
@@ -82,6 +84,8 @@ async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
                 new_notice.pop('ct_id')
             elif 'e_id' in new_notice:
                 new_notice.pop('e_id')
+            elif 'psid' in new_notice:
+                new_notice.pop('psid')
             notices.append(new_notice)
     notices.sort(key=lambda x: datetime.strptime(x['nt_gmt_modified'], '%Y-%m-%d %H:%M:%S'), reverse=True)
     result = makePageResult(Page, counts, notices)
@@ -93,9 +97,8 @@ async def noticelist_get(pageNow: int, pageSize: int, e_id: int = Query(None),
 async def notice_get(nt_id: int, SDUOJUserInfo=Depends(cover_header)):
     ids = notice_model.get_ct_e_id(nt_id)
     groups = SDUOJUserInfo['groups']  # 查出用户所属组
-    ct_id, e_id = notice_model.get_ct_e_id(nt_id)
-    role_group_id = contest_exam_model.get_role_group(ct_id, e_id)
-    await judge_in_groups(ids.ct_id, ids.e_id, groups, SDUOJUserInfo, role_group_id)  # 鉴权
+    role_group_id = contest_exam_model.get_role_group(ids.ct_id, ids.e_id, ids.psid)
+    await judge_in_groups(ids.ct_id, ids.e_id, ids.psid, groups, SDUOJUserInfo, role_group_id)  # 鉴权
     notice_key = f'cache:notices:{nt_id}'
     notice_read_key = f'cache:UserReadNotices:{SDUOJUserInfo["username"]}'
     redis_value = redis_client.get(notice_key)
