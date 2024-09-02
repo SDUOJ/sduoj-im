@@ -1,6 +1,8 @@
 import asyncio
+import hashlib
 import json
 import time
+import uuid
 from typing import Union
 
 import requests
@@ -14,6 +16,17 @@ from sduojApi import contestIdToGroupIdList, examIdToGroupIdList, getGroupMember
 from service.websocket import ContestExamModel
 
 contest_exam_model = ContestExamModel()
+
+
+def get_browser_id(user_agent, username):
+    sum = user_agent + username
+    return uuid.uuid3(uuid.NAMESPACE_DNS, sum).hex
+
+
+def get_list_index(lists, key):
+    for index, item in enumerate(lists):
+        if key in item:
+            return index
 
 
 async def send_heartbeat(websocket: WebSocket):

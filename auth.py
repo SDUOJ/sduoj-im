@@ -31,13 +31,16 @@ async def judge_in_groups(ct_id, e_id, psid, groups, SDUOJUserInfo, TAgroup, mod
     current_groups = [int(num) for num in current_groups]
     groups = [int(num) for num in groups]
     c_group = list(set(current_groups) & set(groups))  # 获取与用户组重叠的部分，判断用户是否在组里
-    if mode == 1:
-        if not c_group or is_admin(SDUOJUserInfo) or TAgroup in groups:  # 组里成员可以但是admin与TA不可以
+    if mode == 1:  # 组里成员可以但是admin与TA不可以
+        if not c_group or is_admin(SDUOJUserInfo) or TAgroup in groups:
             raise HTTPException(status_code=403, detail="Permission Denial")
     elif mode == 0:  # 组里成员和admin和TA都可以
         if not c_group and not is_admin(SDUOJUserInfo) and not TAgroup in groups:
             raise HTTPException(status_code=403, detail="Permission Denial")
         return is_admin(SDUOJUserInfo), TAgroup in groups
+    elif mode == 2:  # 组里成员和TA可以, admin不可以
+        if (not c_group and TAgroup in groups) or is_admin(SDUOJUserInfo):
+            raise HTTPException(status_code=403, detail="Permission Denial")
 
 
 def is_manager(obj, SDUOJUserInfo):

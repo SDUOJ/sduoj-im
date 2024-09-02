@@ -3,20 +3,20 @@ import json
 import uuid
 from typing import Dict
 
-from fastapi import APIRouter, WebSocketException, Depends
-from fastapi import WebSocket
+from fastapi import APIRouter, Depends
+from fastapi import WebSocket, Request
 
-from auth import is_role_member, cover_header, is_admin, judge_in_groups
+from auth import cover_header, judge_in_groups
 from model.redis_db import redis_client
 from sduojApi import getUserId, getUserInformation
-from service.websocket import ContestExamModel, WebsocketModel, MissedModel
 from service.message import MessageModel, MessageGroupModel, MessageUserModel
 from service.notice import NoticeModel
-from type.functions import send_heartbeat, get_group_student, get_message_group_members, dict_pop
+from service.websocket import ContestExamModel, WebsocketModel, MissedModel
+from type.functions import send_heartbeat, get_group_student, get_message_group_members, get_browser_id
 from type.message import message_add_interface, message_receive_interface
 from type.notice import notice_add_interface, notice_update_interface
-from utils.response import user_standard_response
 from type.websocket import websocket_add_interface, missed_add_interface
+from utils.response import user_standard_response
 
 ws_router = APIRouter()
 message_model = MessageModel()
@@ -30,19 +30,21 @@ missed_model = MissedModel()
 
 class WSConnectionManager:
     def __init__(self):
-        # 存放激活的ws连接对象
-        self.active_connections: Dict[str, WebSocket] = {}
+        # 存放激活的ws连接对象,格式: {user_id: [{browser_id: WebSocket}, {browser_id: WebSocket}]}
+        self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
 
-    async def connect(self, ws: WebSocket, username: str):
+    async def connect(self, ws: WebSocket, username: str, browser_id):
         # 等待连接
         await ws.accept()
         # 存储ws连接对象
-        self.active_connections[username] = ws
+        if username not in self.active_connections:
+            self.active_connections[username] = {}
+        self.active_connections[username][browser_id] = ws
 
-    def disconnect(self, username: str):
+    def disconnect(self, username: str, browser_id):
         # 关闭时 移除ws对象
         if username in self.active_connections:
-            del self.active_connections[username]
+            del self.active_connections[username][browser_id]
 
     @staticmethod
     async def send_personal_message(message, ws: WebSocket):
@@ -61,11 +63,12 @@ class WSConnectionManager:
             username = user['username']
             if username == m_username:
                 continue
-            if username in ws_manager.active_connections:
-                if type(message) == str:
-                    await self.active_connections[username].send_text(message)
-                else:
-                    await self.active_connections[username].send_json(message)
+            if username in self.active_connections:
+                for browser in self.active_connections[username].keys():
+                    if type(message) == str:
+                        await self.active_connections[username][browser].send_text(message)
+                    else:
+                        await self.active_connections[username][browser].send_json(message)
             else:
                 if group_build == 0:
                     try:
@@ -78,7 +81,8 @@ class WSConnectionManager:
                         elif mode == 1:
                             ms_id = missed_model.add_missed(
                                 missed_add_interface(username=username, ms_key=f'notice-{project_id}'))
-                            redis_client.rpush(f'cache:unreadUsers:{username}', 3 * 3600, f'notice-{project_id}-{ms_id}')
+                            redis_client.rpush(f'cache:unreadUsers:{username}', 3 * 3600,
+                                               f'notice-{project_id}-{ms_id}')
 
                     except Exception as e:
                         pass
@@ -91,9 +95,13 @@ class WebSocketCustomException(Exception):
     def __init__(self, code: int, reason: str):
         self.code = code
         self.reason = reason
+        super().__init__(self.reason)
+
+    def __str__(self):
+        return f"[Error {self.code}]: {self.reason}"
 
 
-async def resend_msg(missed_msg, mode, m_username):
+async def resend_msg(missed_msg, mode, m_username, browser_id):
     redis_user_key = f'cache:unreadUsers:{m_username}'
     for missed in missed_msg:
         if mode == 1:
@@ -128,7 +136,7 @@ async def resend_msg(missed_msg, mode, m_username):
                 send_thing = message_model.get_message_by_id(int(ms_key_split[2]))
         await ws_manager.send_personal_message(
             json.dumps(send_thing),
-            ws_manager.active_connections[m_username])
+            ws_manager.active_connections[m_username][browser_id])
         if mode == 0:
             redis_client.lpop(redis_user_key)
         missed_model.update_read(int(ms_id))
@@ -136,35 +144,40 @@ async def resend_msg(missed_msg, mode, m_username):
 
 @ws_router.post("/auth")  # websocket建立前的权限认证与token生成
 @user_standard_response
-async def ws_auth(SDUOJUserInfo=Depends(cover_header)):
-    exist_token = websocket_model.get_token_by_username(SDUOJUserInfo['username'])
+async def ws_auth(request: Request, SDUOJUserInfo=Depends(cover_header)):
+    user_agent = request.headers.get("user-agent")
+    browser_id = get_browser_id(user_agent, SDUOJUserInfo['username'])
+    exist_token = websocket_model.get_token_by_username_browser(SDUOJUserInfo['username'], browser_id)
     if exist_token is not None:
         return {'message': '连接已存在', 'data': {'token': exist_token[0]}, 'code': 0}
     token = str(uuid.uuid4().hex)
-    websocket_model.build_ws_connect(websocket_add_interface(username=SDUOJUserInfo['username'], w_token=token))
+    websocket_model.build_ws_connect(
+        websocket_add_interface(username=SDUOJUserInfo['username'], w_token=token, w_browser=browser_id))
     return {'message': '连接建立成功', 'data': {'token': token}, 'code': 0}
 
 
-@ws_router.websocket("/handle/{token}")  # 建立websocket连接(注释掉的部分为判断已读未读)
+@ws_router.websocket("/handle/{token}")  # 管理websocket连接
 async def ws_handle(websocket: WebSocket, token: str):
     try:
         m_username = websocket_model.get_username_by_token(token)
         # if m_username is None:
         #     raise WebSocketCustomException(code=403, reason='Permission Denial')
-        m_username = m_username.username
-        # 发送者刚上线，消息重新推送逻辑
-        if m_username not in ws_manager.active_connections:
-            await ws_manager.connect(websocket, m_username)
+        if m_username is not None:
+            m_username = m_username.username
+        browser_id = get_browser_id(websocket.headers.get('user-agent'), m_username)  # 获取用户user_agent，便于比较用户是否是不同客户端
+        if m_username not in ws_manager.active_connections or browser_id not in ws_manager.active_connections[
+            m_username]:  # 发送者刚上线，消息重新推送逻辑
+            await ws_manager.connect(websocket, m_username, browser_id)
             redis_user_key = f'cache:unreadUsers:{m_username}'
             missed_msg = redis_client.lrange(redis_user_key, 0, -1)
             if missed_msg:  # 是否有错过的消息
-                await resend_msg(missed_msg, 0, m_username)
+                await resend_msg(missed_msg, 0, m_username, browser_id)
             else:
                 ms_keys = missed_model.get_key_by_username(m_username)
                 if ms_keys:
-                    await resend_msg(ms_keys, 1, m_username)
+                    await resend_msg(ms_keys, 1, m_username, browser_id)
         # 发送心跳
-        # asyncio.create_task(send_heartbeat(websocket))
+        asyncio.create_task(send_heartbeat(websocket))
         # 主循环
         while True:
             data = await asyncio.wait_for(websocket.receive_json(), timeout=10000)  # websocket过期时间
@@ -256,8 +269,8 @@ async def ws_handle(websocket: WebSocket, token: str):
 
     except Exception as e:  # 所有异常
         print(e)
-        ws_manager.disconnect(m_username)
-        websocket_model.close_by_username(m_username)
+        ws_manager.disconnect(m_username, browser_id)
+        # websocket_model.close_by_token(token)
 
     # except asyncio.TimeoutError:  # 无动作超时
     #     ws_manager.disconnect(m_from)

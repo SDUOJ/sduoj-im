@@ -15,4 +15,4 @@ class message_add_interface(message_receive_interface):
 
 
 class message_group_add_interface(base_interface):
-    username: str
+    username: str = None

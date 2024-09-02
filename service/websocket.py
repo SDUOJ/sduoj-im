@@ -46,18 +46,18 @@ class WebsocketModel(dbSession):
             session.commit()
             return True
 
-    def close_by_username(self, username: str):
+    def close_by_token(self, token: str):
         with self.get_db() as session:
             session.query(Websocket).filter(
-                Websocket.username == username
+                Websocket.w_token == token
             ).update({"w_is_closed": True})
             session.commit()
             return True
 
-    def get_token_by_username(self, username: str):  # 根据username获取token
+    def get_token_by_username_browser(self, username: str, browser_id):  # 根据username, browser_id获取token
         with self.get_db() as session:
             token = session.query(Websocket.w_token).filter(
-                Websocket.username == username, Websocket.w_is_closed == 0).first()
+                Websocket.username == username, Websocket.w_browser == browser_id, Websocket.w_is_closed == 0).first()
             session.commit()
             return token
 

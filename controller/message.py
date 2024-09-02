@@ -88,11 +88,13 @@ async def message_view(e_id: Optional[int] = None, ct_id: Optional[int] = None, 
 
 @message_router.post("/addMessageGroup")  # 创建群聊组(用户点击提问)
 @user_standard_response
-async def message_group_add(mg_add: base_interface,
+async def message_group_add(mg_add: message_group_add_interface,
                             SDUOJUserInfo=Depends(cover_header)):
     role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id, mg_add.psid)
     await judge_in_groups(mg_add.ct_id, mg_add.e_id, mg_add.psid, SDUOJUserInfo['groups'], SDUOJUserInfo, role_group_id,
-                          1)  # 鉴权,组里普通成员可以但是admin与TA不可以
+                          2)  # 鉴权,组里普通成员可以但是admin与TA不可以
+    if mg_add.username is not None:
+        SDUOJUserInfo["username"] = mg_add.username
     exist_mg_id = message_group_model.get_mg_id(mg_add, SDUOJUserInfo["username"])
     if exist_mg_id is not None:
         return {'message': '群聊组已存在', 'data': {'mg_id': exist_mg_id[0]}, 'code': 0}
