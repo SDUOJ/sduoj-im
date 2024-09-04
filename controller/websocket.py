@@ -1,22 +1,24 @@
 import asyncio
 import json
 import uuid
-from typing import Dict
+from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends
 from fastapi import WebSocket, Request
 
 from auth import cover_header, judge_in_groups
 from model.redis_db import redis_client
-from sduojApi import getUserId, getUserInformation
+from sduojApi import getUserId, getUserInformation, getGroupMember
 from service.message import MessageModel, MessageGroupModel, MessageUserModel
 from service.notice import NoticeModel
 from service.websocket import ContestExamModel, WebsocketModel, MissedModel
-from type.functions import send_heartbeat, get_group_student, get_message_group_members, get_browser_id
+from type.functions import send_heartbeat, get_group_student, get_message_group_members, get_browser_id, \
+    get_current_groups
 from type.message import message_add_interface, message_receive_interface
 from type.notice import notice_add_interface, notice_update_interface
 from type.websocket import websocket_add_interface, missed_add_interface
 from utils.response import user_standard_response
+from utils.websocket_exception import WebSocketCustomException
 
 ws_router = APIRouter()
 message_model = MessageModel()
@@ -91,16 +93,6 @@ class WSConnectionManager:
 ws_manager = WSConnectionManager()
 
 
-class WebSocketCustomException(Exception):
-    def __init__(self, code: int, reason: str):
-        self.code = code
-        self.reason = reason
-        super().__init__(self.reason)
-
-    def __str__(self):
-        return f"[Error {self.code}]: {self.reason}"
-
-
 async def resend_msg(missed_msg, mode, m_username, browser_id):
     redis_user_key = f'cache:unreadUsers:{m_username}'
     for missed in missed_msg:
@@ -154,6 +146,19 @@ async def ws_auth(request: Request, SDUOJUserInfo=Depends(cover_header)):
     websocket_model.build_ws_connect(
         websocket_add_interface(username=SDUOJUserInfo['username'], w_token=token, w_browser=browser_id))
     return {'message': '连接建立成功', 'data': {'token': token}, 'code': 0}
+
+
+@ws_router.get("/GetStudent")  # 获取某个题单的所有学生
+@user_standard_response
+async def ws_auth(e_id: Optional[int] = None, ct_id: Optional[int] = None, psid: Optional[int] = None,
+                  SDUOJUserInfo=Depends(cover_header)):
+    role_group_id = contest_exam_model.get_role_group(ct_id, e_id, psid)  # 获取管理组id
+    current_groups = await get_current_groups(ct_id, e_id, psid)
+    members = await getGroupMember(current_groups[0])  # 用户组所有成员
+    TAmembers = await getGroupMember(role_group_id)  # TA组成员
+    TA_usernames_list = {item['username'] for item in TAmembers}
+    students = [item for item in members if item['username'] not in TA_usernames_list]  # 差集操作
+    return {'message': '连接建立成功', 'data': {'students': students}, 'code': 0}
 
 
 @ws_router.websocket("/handle/{token}")  # 管理websocket连接

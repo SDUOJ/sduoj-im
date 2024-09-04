@@ -93,6 +93,7 @@ async def message_group_add(mg_add: message_group_add_interface,
     role_group_id = contest_exam_model.get_role_group(mg_add.ct_id, mg_add.e_id, mg_add.psid)
     await judge_in_groups(mg_add.ct_id, mg_add.e_id, mg_add.psid, SDUOJUserInfo['groups'], SDUOJUserInfo, role_group_id,
                           2)  # 鉴权,组里普通成员可以但是admin与TA不可以
+    TA_username = SDUOJUserInfo["username"]
     if mg_add.username is not None:
         SDUOJUserInfo["username"] = mg_add.username
     exist_mg_id = message_group_model.get_mg_id(mg_add, SDUOJUserInfo["username"])
@@ -104,12 +105,12 @@ async def message_group_add(mg_add: message_group_add_interface,
     build_username = message_group_model.get_username_by_mg_id(mg_id)
     members = await get_message_group_members(role_group_id, build_username, mg_id)  # 获取全部成员
     current_time, m_id = message_model.add_message(
-        message_add_interface(m_content='群聊已建立!', username=SDUOJUserInfo["username"],
+        message_add_interface(m_content='群聊已建立!', username=TA_username,
                               mg_id=mg_id))
     http_result = {'mg_id': mg_id, 'members': members}
     ws_result = {'mg_id': mg_id, 'members': members, 'm_id': m_id, 'm_gmt_create': current_time,
                  'm_last_content': '群聊已建立!', 'is_read': 0}
-    await ws_manager.broadcast(0, ws_result, members, -1, SDUOJUserInfo["username"], mg_id, 1)
+    await ws_manager.broadcast(0, ws_result, members, -1, TA_username, mg_id, 1)
     return {'message': '创建群聊组成功', 'data': http_result, 'code': 0}
 
 # @message_router.get("/getMessage")  # 查看与某人的消息(私聊)

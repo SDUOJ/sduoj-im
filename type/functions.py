@@ -50,6 +50,16 @@ async def get_group_student(ct_id, e_id, psid):
     return await getGroupMember(int(current_group[0]))
 
 
+async def get_current_groups(ct_id, e_id, psid):  # 获取所有的ct_id,e_id,psid对应的group
+    if ct_id is not None:
+        current_groups = await contestIdToGroupIdList(ct_id)
+    elif e_id is not None:
+        current_groups = await examIdToGroupIdList(e_id)
+    elif psid is not None:
+        current_groups = await get_ps_group(psid)
+    return [int(num) for num in current_groups]
+
+
 async def get_ps_group(psid):
     return contest_exam_model.get_ps_groups(psid)
 

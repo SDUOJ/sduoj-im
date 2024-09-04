@@ -70,7 +70,7 @@ async def examIdToGroupIdList(examId):
     return data
 
 
-async def getGroupMember(groupId):
+async def getGroupMember(groupId, mode = 0):
     data = await make_get(
         "user-service",
         "/internal/group/query",

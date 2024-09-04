@@ -4,7 +4,7 @@ from urllib import parse
 from fastapi import Header, HTTPException
 
 from sduojApi import contestIdToGroupIdList, examIdToGroupIdList
-from type.functions import get_ps_group
+from type.functions import get_ps_group, get_current_groups
 from utils.utilsTime import afterTime
 
 
@@ -21,14 +21,7 @@ def is_role_member(role_group_id, groups):
 
 
 async def judge_in_groups(ct_id, e_id, psid, groups, SDUOJUserInfo, TAgroup, mode=0):
-    # 先获取所有的ct_id,e_id对应的组
-    if ct_id is not None:
-        current_groups = await contestIdToGroupIdList(ct_id)
-    elif e_id is not None:
-        current_groups = await examIdToGroupIdList(e_id)
-    elif psid is not None:
-        current_groups = await get_ps_group(psid)
-    current_groups = [int(num) for num in current_groups]
+    current_groups = get_current_groups(ct_id, e_id, psid)
     groups = [int(num) for num in groups]
     c_group = list(set(current_groups) & set(groups))  # 获取与用户组重叠的部分，判断用户是否在组里
     if mode == 1:  # 组里成员可以但是admin与TA不可以
